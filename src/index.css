@@ -1,1 +1,167 @@
+/* src/index.css 또는 메인 CSS 파일 */
+
+/* 1. Noto Sans KR (Google Fonts) 임포트 - CSS 파일의 맨 위에 위치 */
+@import url("//fonts.googleapis.com/earlyaccess/notosanskr.css");
+
+/* 2. Taebaek 폰트 (@font-face) 정의 */
+@font-face {
+  font-family: "Taebaek";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2310@1.0/TAEBAEKfont.woff2")
+    format("woff2");
+  font-weight: normal;
+  font-display: swap;
+}
+
+/* 3. Aggravo 폰트 (@font-face) 정의 (웨이트 300, 500, 700) */
+@font-face {
+  font-family: "Aggravo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2108@1.1/SBAggroL.woff")
+    format("woff");
+  font-weight: 300; /* Light */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Aggravo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2108@1.1/SBAggroM.woff")
+    format("woff");
+  font-weight: 500; /* Medium */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Aggravo";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2108@1.1/SBAggroB.woff")
+    format("woff");
+  font-weight: 700; /* Bold */
+  font-display: swap;
+}
+
+/* 4. Presentation 폰트 (@font-face) 정의 (웨이트 100~900) - 새로운 추가 */
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-1Thin.woff2")
+    format("woff2");
+  font-weight: 100; /* Thin */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-2ExtraLight.woff2")
+    format("woff2");
+  font-weight: 200; /* ExtraLight */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-3Light.woff2")
+    format("woff2");
+  font-weight: 300; /* Light */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-4Regular.woff2")
+    format("woff2");
+  font-weight: 400; /* Regular */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-5Medium.woff2")
+    format("woff2");
+  font-weight: 500; /* Medium */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-6SemiBold.woff2")
+    format("woff2");
+  font-weight: 600; /* SemiBold */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-7Bold.woff2")
+    format("woff2");
+  font-weight: 700; /* Bold */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-8ExtraBold.woff2")
+    format("woff2");
+  font-weight: 800; /* ExtraBold */
+  font-display: swap;
+}
+@font-face {
+  font-family: "Presentation";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2404@1.0/Freesentation-9Black.woff2")
+    format("woff2");
+  font-weight: 900; /* Black */
+  font-display: swap;
+}
+
+/* 5. Tailwind 지시어 */
 @import "tailwindcss";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 6. @layer utilities를 사용하여 Tailwind 스타일의 커스텀 클래스 생성 */
+@layer utilities {
+  /* Noto Sans KR 폰트 클래스 */
+  .font-noto {
+    font-family: "Noto Sans KR", sans-serif;
+  }
+
+  /* Aggravo 폰트 클래스 */
+  .font-aggravo {
+    font-family: "Aggravo", sans-serif;
+  }
+
+  /* Presentation 폰트 클래스 */
+  .font-presentation {
+    font-family: "Presentation", sans-serif;
+  }
+
+  /* 배경색 클래스 (bg-[이름]) */
+  .bg-rebay-blue {
+    background-color: #0761b4;
+  }
+  .bg-rebay-green {
+    background-color: #33b267;
+  }
+  .bg-rebay-search {
+    background-color: #e8f2f5;
+  }
+
+  /* 텍스트 색상 클래스 (text-[이름]) */
+  .text-rebay-blue {
+    color: #0761b4;
+  }
+  .text-rebay-green {
+    color: #33b267;
+  }
+  .text-rebaygray-300 {
+    color: #49454f;
+  }
+  .text-rebaygray-200 {
+    color: #807c87;
+  }
+  .text-rebaygray-100 {
+    color: #989ba2;
+  }
+
+  .bg-rebay-gradient {
+    /*
+    linear-gradient(방향, 시작 색상, 끝 색상) 
+    예: To Right (오른쪽으로), #1A2B3C (시작), #FFD700 (끝)
+  */
+    background-image: linear-gradient(
+      to bottom left,
+      #0761b4,
+      #33b267,
+      #faebdc
+    );
+  }
+}
