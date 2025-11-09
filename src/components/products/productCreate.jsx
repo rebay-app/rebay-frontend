@@ -1,4 +1,4 @@
-// src/components/post/PostCreate.jsx
+// src/components/product/ProductCreate.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import postService from "../../services/post";
@@ -34,7 +34,7 @@ const parseHashtags = (input) =>
     .map((s) => s.replace(/^#/, "").trim())
     .filter(Boolean);
 
-const PostCreate = ({
+const ProductCreate = ({
   onCreated,
   goBack,
   defaultCategory = "DIGITAL_DEVICES",
@@ -136,7 +136,7 @@ const PostCreate = ({
 
     resetForm();
     if (typeof goBack === "function") goBack();
-    else navigate("/");
+    else navigate("/"); // 메인으로 이동
   };
 
   const onSubmit = async (e) => {
@@ -158,7 +158,7 @@ const PostCreate = ({
       onCreated?.(data);
 
       resetForm();
-      navigate("/");
+      navigate("/"); // 등록 후 메인으로 이동
     } catch (err) {
       setError(err?.response?.data?.message || err.message || "등록 실패");
     } finally {
@@ -396,4 +396,4 @@ const PostCreate = ({
   );
 };
 
-export default PostCreate;
+export default ProductCreate;

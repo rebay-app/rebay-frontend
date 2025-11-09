@@ -7,7 +7,7 @@ import UserProfile from "./pages/userProfile";
 import EditProfile from "./pages/editProfile";
 import SamplePage from "./pages/samplePage";
 import Products from "./pages/products";
-import PostCreate from "./components/post/PostCreate";
+import ProductCreate from "./components/products/productCreate";
 
 const App = () => {
   return (
@@ -21,7 +21,7 @@ const App = () => {
         <Route path="/user/:targetUserId" element={<UserProfile />} />
         <Route path="/user/:targetUserId/edit" element={<EditProfile />} />
         <Route path="/products" element={<Products />} />
-        <Route path="/sell" element={<PostCreate />} />
+        <Route path="/sell" element={<ProductCreate />} />
       </Routes>
     </BrowserRouter>
   );
