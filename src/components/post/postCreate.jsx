@@ -1,3 +1,4 @@
+// src/components/post/PostCreate.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import postService from "../../services/post";
@@ -79,7 +80,6 @@ const PostCreate = ({
       setError(
         err?.response?.data?.message || err.message || "이미지 업로드 실패"
       );
-
       URL.revokeObjectURL(localUrl);
       setImagePreview("");
     } finally {
@@ -112,6 +112,33 @@ const PostCreate = ({
     };
   }, [catOpen]);
 
+  const resetForm = () => {
+    setForm({
+      title: "",
+      price: "",
+      category: defaultCategory,
+      imageUrl: "",
+      content: "",
+    });
+    setHashtagsInput("");
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview("");
+  };
+
+  const handleCancel = () => {
+    const hasChanges =
+      form.title || form.price || form.content || hashtagsInput || imagePreview;
+
+    if (hasChanges) {
+      const ok = window.confirm("작성 중인 내용이 있습니다. 취소할까요?");
+      if (!ok) return;
+    }
+
+    resetForm();
+    if (typeof goBack === "function") goBack();
+    else navigate("/");
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
@@ -130,18 +157,8 @@ const PostCreate = ({
       const data = await postService.createPost(payload);
       onCreated?.(data);
 
-      setForm({
-        title: "",
-        price: "",
-        category: defaultCategory,
-        imageUrl: "",
-        content: "",
-      });
-      setHashtagsInput("");
-      if (imagePreview) URL.revokeObjectURL(imagePreview);
-      setImagePreview("");
-
-      navigate("/products");
+      resetForm();
+      navigate("/");
     } catch (err) {
       setError(err?.response?.data?.message || err.message || "등록 실패");
     } finally {
@@ -164,6 +181,7 @@ const PostCreate = ({
       </div>
 
       <form onSubmit={onSubmit} className="space-y-8">
+        {/* 이미지 */}
         <section>
           <label className="block text-sm font-medium mb-2">상품이미지</label>
 
@@ -228,6 +246,7 @@ const PostCreate = ({
           )}
         </section>
 
+        {/* 제목 */}
         <section>
           <label className="block text-sm font-medium mb-2">상품명</label>
           <div className="relative">
@@ -246,6 +265,7 @@ const PostCreate = ({
           </div>
         </section>
 
+        {/* 카테고리 */}
         <section ref={catRef}>
           <label className="block text-sm font-medium mb-2">카테고리</label>
 
@@ -300,6 +320,7 @@ const PostCreate = ({
           )}
         </section>
 
+        {/* 가격 */}
         <section>
           <label className="block text-sm font-medium mb-2">가격(원)</label>
           <input
@@ -315,6 +336,7 @@ const PostCreate = ({
           />
         </section>
 
+        {/* 설명 */}
         <section>
           <label className="block text-sm font-medium mb-2">설명</label>
           <textarea
@@ -328,6 +350,7 @@ const PostCreate = ({
           />
         </section>
 
+        {/* 해시태그 */}
         <section>
           <label className="block text-sm font-medium mb-2">해시태그</label>
           <input
@@ -348,13 +371,15 @@ const PostCreate = ({
           </div>
         </section>
 
+        {/* 하단 버튼: 취소 + 등록하기 */}
         <section className="flex items-center justify-end gap-3 pt-2">
           <button
             type="button"
-            onClick={() => alert("임시저장: 로컬 저장/초안 API 연동 가능")}
-            className="px-4 py-2 rounded-lg border"
+            onClick={handleCancel}
+            disabled={submitting || uploading}
+            className="px-4 py-2 rounded-lg border hover:bg-gray-50 disabled:opacity-50"
           >
-            임시저장
+            취소
           </button>
           <button
             type="submit"
