@@ -58,7 +58,7 @@ const Signup = ({ onClose, onOpenLogin }) => {
           <div className="px-12 py-5">
             <h1 className="flex items-center justify-center">
               <img
-                src="image-Photoroom.png"
+                src="/image-Photoroom.png"
                 alt="ReBay"
                 className="w-25 mb-4"
               />
@@ -114,6 +114,7 @@ const Signup = ({ onClose, onOpenLogin }) => {
                   name="username"
                   placeholder="Username"
                   value={formData.username}
+                  minlength="2"
                   onChange={handleChange}
                   required
                 />
@@ -123,6 +124,7 @@ const Signup = ({ onClose, onOpenLogin }) => {
                   name="password"
                   placeholder="Password"
                   value={formData.password}
+                  minlength="6"
                   onChange={handleChange}
                   required
                 />
