@@ -66,10 +66,8 @@ const Product = ({ post, onClick }) => {
                    hover:shadow-md hover:-translate-y-[2px] transition-transform text-left
                    focus:outline-none focus:ring-2 focus:ring-blue-300"
       >
-        <div className="m-3 h-[200px] bg-gray-100 rounded-[10px] overflow-hidden flex items-center justify-center">
-          {loading ? (
-            <div className="w-full h-full bg-gray-100 animate-pulse" />
-          ) : signedUrl ? (
+        <div className="m-3 h-[200px] bg-gray-200 rounded-[10px] overflow-hidden flex items-center justify-center">
+          {signedUrl ? (
             <img
               src={signedUrl}
               alt={post?.title || "상품"}
@@ -78,7 +76,7 @@ const Product = ({ post, onClick }) => {
               onError={() => setSignedUrl("")}
             />
           ) : (
-            <FaImage size={64} className="text-gray-300" />
+            <FaImage size={72} className="text-rebay-gray-300" />
           )}
         </div>
 
