@@ -116,6 +116,7 @@ const EditProfile = () => {
                       >
                         <FiPlus size={30} />
                       </button>
+                      <div className="absolute size-[300px]"></div>
                       <Avatar user={avatarUser} size="size-[300px]" />
                     </>
                   )}

@@ -7,17 +7,19 @@ import {
   BsStar,
   BsStarFill,
 } from "react-icons/bs";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import useReviewStore from "../../store/reviewStore";
 import CreateReview from "./createReview";
 
 const ReviewCard = ({ review }) => {
   const { user } = useAuthStore();
 
-  const [showReviewSetting, setShowReviewSetting] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [showEditReview, setShowEditReview] = useState(false);
 
   const { deleteReview } = useReviewStore();
+
+  const menuRef = useRef(null);
 
   const handleReviewEdit = () => {
     setShowEditReview(true);
@@ -31,6 +33,21 @@ const ReviewCard = ({ review }) => {
       window.location.reload();
     }
   };
+
+  useEffect(() => {
+    const handleClickOutSide = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener("mousedown", handleClickOutSide);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutSide);
+      };
+    }
+  }, [showMenu]);
 
   const stars = [];
   for (let i = 1; i <= 5; i++) {
@@ -62,7 +79,7 @@ const ReviewCard = ({ review }) => {
               {isOwnReview ? (
                 <div
                   className="cursor-pointer"
-                  onClick={() => setShowReviewSetting(!showReviewSetting)}
+                  onClick={() => setShowMenu(!showMenu)}
                 >
                   <HiOutlineDotsVertical />
                 </div>
@@ -70,16 +87,19 @@ const ReviewCard = ({ review }) => {
                 <div></div>
               )}
             </div>
-            {showReviewSetting && (
-              <div className="w-[70px] h-auto flex items-center justify-center flex-col shadow">
+            {showMenu && (
+              <div
+                className="w-[70px] h-auto flex items-center justify-center flex-col shadow"
+                ref={menuRef}
+              >
                 <div
-                  className="cursor-pointer flex items-center"
+                  className="cursor-pointer w-full hover-bg-rebay-gray-100 flex justify-center items-center"
                   onClick={handleReviewEdit}
                 >
                   <BsFillPencilFill size={15} className="mx-1" /> 수정
                 </div>
                 <div
-                  className="cursor-pointer flex items-center"
+                  className="cursor-pointer  w-full hover-bg-rebay-gray-100 flex justify-center items-center"
                   onClick={handleReviewDelete}
                 >
                   <BsFillTrashFill size={15} className="mx-1" /> 삭제
