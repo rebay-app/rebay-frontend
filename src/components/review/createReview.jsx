@@ -4,7 +4,7 @@ import { BsStar, BsStarFill } from "react-icons/bs";
 import useReviewStore from "../../store/reviewStore";
 import { useEffect, useMemo, useState } from "react";
 
-const CreateReview = ({ review, transactionId = 10, onClose }) => {
+const CreateReview = ({ review, transactionId = 1, onClose }) => {
   const { createReview, updateReview, loading, error } = useReviewStore();
 
   const [formData, setFormData] = useState({

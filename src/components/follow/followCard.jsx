@@ -19,9 +19,9 @@ const FollowCard = ({ user, onFollowToggleSuccess }) => {
 
   return (
     <div className="flex items-center mt-5 w-full ">
-      <div className="font-presentation text-xl flex h-[150px] w-[990px] border-b-1 border-gray-400">
+      <div className="font-presentation text-xl flex h-[150px] w-[990px] border-b-1 border-rebay-gray-200">
         <Avatar size="size-30" user={user} />
-        <div className="w-full flex justify-between px-4">
+        <div className="w-full flex justify-between px-4 text-rebay-gray-700">
           <div className="">
             <div className="text-2xl">{user.username}</div>
             <div>{user.email}</div>
@@ -33,20 +33,20 @@ const FollowCard = ({ user, onFollowToggleSuccess }) => {
                 user.following ? (
                   <button
                     onClick={handleToggleFollow}
-                    className="cursor-pointer w-[120px] h-[40px] rounded-xl shadow-sm hover:shadow-lg font-bold text-white bg-rebay-gray-400 transition-all  duration-200 hover:opacity-90"
+                    className="cursor-pointer w-[120px] h-[40px] text-lg rounded-xl shadow-sm hover:shadow-lg font-bold text-white bg-rebay-gray-400 transition-all  duration-200 hover:opacity-90"
                   >
                     unfollow
                   </button>
                 ) : (
                   <button
                     onClick={handleToggleFollow}
-                    className="cursor-pointer w-[120px] h-[40px] rounded-xl shadow-sm hover:shadow-lg font-bold text-white bg-rebay-blue transition-all  duration-200 hover:opacity-90"
+                    className="cursor-pointer w-[120px] h-[40px] text-lg rounded-xl shadow-sm hover:shadow-lg font-bold text-white bg-rebay-blue transition-all  duration-200 hover:opacity-90"
                   >
                     follow +
                   </button>
                 )
               ) : (
-                <div>나</div>
+                <div></div>
               )}
             </div>
           </div>

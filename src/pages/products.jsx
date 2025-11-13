@@ -111,7 +111,7 @@ const Products = () => {
   return (
     <MainLayout>
       <Header />
-      <main className="mt-[70px]">
+      <main className="my-[70px] font-presentation">
         <section className="mx-auto w-full max-w-[1080px] px-3">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-presentation text-[22px] font-bold">
@@ -122,7 +122,7 @@ const Products = () => {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="border rounded-lg px-3 py-1.5"
+                className="border border-rebay-gray-400 rounded-lg px-3 py-1.5"
                 aria-label="카테고리 선택"
               >
                 {CATEGORY_OPTIONS.map((c) => (
@@ -135,32 +135,32 @@ const Products = () => {
               {/* 정렬 */}
               <button
                 onClick={() => setSort(SORTS.LATEST)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  sort === SORTS.LATEST ? "bg-blue-600 text-white" : ""
+                className={`px-3 py-1.5 rounded-lg border border-rebay-gray-400 ${
+                  sort === SORTS.LATEST ? "bg-rebay-blue text-white" : ""
                 }`}
               >
                 최신
               </button>
               <button
                 onClick={() => setSort(SORTS.PRICE_ASC)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  sort === SORTS.PRICE_ASC ? "bg-blue-600 text-white" : ""
+                className={`px-3 py-1.5 rounded-lg border border-rebay-gray-400 ${
+                  sort === SORTS.PRICE_ASC ? "bg-rebay-blue text-white" : ""
                 }`}
               >
                 가격 오름차순
               </button>
               <button
                 onClick={() => setSort(SORTS.PRICE_DESC)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  sort === SORTS.PRICE_DESC ? "bg-blue-600 text-white" : ""
+                className={`px-3 py-1.5 rounded-lg border border-rebay-gray-400 ${
+                  sort === SORTS.PRICE_DESC ? "bg-rebay-blue text-white" : ""
                 }`}
               >
                 가격 내림차순
               </button>
               <button
                 onClick={() => setSort(SORTS.TITLE_ASC)}
-                className={`px-3 py-1.5 rounded-lg border ${
-                  sort === SORTS.TITLE_ASC ? "bg-blue-600 text-white" : ""
+                className={`px-3 py-1.5 rounded-lg border border-rebay-gray-400 ${
+                  sort === SORTS.TITLE_ASC ? "bg-rebay-blue text-white" : ""
                 }`}
               >
                 이름순

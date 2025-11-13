@@ -18,7 +18,6 @@ const UserProfile = () => {
 
   const { user } = useAuthStore();
   const { userProfile, getUserProfile } = useUserStore();
-  const { getReviewsCountByUser } = useReviewStore();
   const { getStatisticsByUserProfile } = useStatisticsStore();
   const { followers, following, toggleFollow, getFollowers, getFollowing } =
     useFollowStore();
@@ -228,7 +227,9 @@ const UserProfile = () => {
                 </section>
               )}
 
-              {showReview && <ReviewList user={userProfile} />}
+              {showReview && (
+                <ReviewList user={userProfile} variant="default" />
+              )}
 
               {showFollower && (
                 <FollowList
