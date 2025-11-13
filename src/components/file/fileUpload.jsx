@@ -102,7 +102,10 @@ const FileUpload = ({ user, onClose }) => {
                       className="w-full rounded-full object-cover"
                     />
                   ) : (
-                    <Avatar user={user} />
+                    <div>
+                      <div className="absolute size-[260px]"></div>
+                      <Avatar user={user} />
+                    </div>
                   )}
                   <button
                     type="button"

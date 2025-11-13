@@ -7,10 +7,10 @@ const FollowList = ({ list, onFollowToggleSuccess }) => {
         <div>
           {list.length != 0 ? (
             <div>
-              {list.map((follow) => (
+              {list.map((user) => (
                 <FollowCard
-                  key={follow.id}
-                  follow={follow}
+                  key={user.id}
+                  user={user}
                   onFollowToggleSuccess={onFollowToggleSuccess}
                 />
               ))}

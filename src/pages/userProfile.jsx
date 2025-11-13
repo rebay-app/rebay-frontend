@@ -8,7 +8,6 @@ import useUserStore from "../store/userStore";
 import { useEffect, useState } from "react";
 import Product from "../components/products/product";
 import ReviewList from "../components/review/reviewList";
-import CreateReview from "../components/review/createReview";
 import useReviewStore from "../store/reviewStore";
 import useStatisticsStore from "../store/statisticsStore";
 import useFollowStore from "../store/followStore";
@@ -19,7 +18,6 @@ const UserProfile = () => {
 
   const { user } = useAuthStore();
   const { userProfile, getUserProfile } = useUserStore();
-  const { getReviewsCountByUser } = useReviewStore();
   const { getStatisticsByUserProfile } = useStatisticsStore();
   const { followers, following, toggleFollow, getFollowers, getFollowing } =
     useFollowStore();
@@ -33,7 +31,7 @@ const UserProfile = () => {
     { id: "following", label: "팔로잉" },
   ];
 
-  const [activeTab, setActiveTab] = useState("product");
+  const [activeTab, setActiveTab] = useState("post");
   const [showPost, setShowPost] = useState(true);
   const [showReview, setShowReview] = useState(false);
   const [showFollower, setShowFollower] = useState(false);
@@ -111,7 +109,7 @@ const UserProfile = () => {
       }
     };
     loadTapDetails();
-  }, [activeTab, targetUserId, getStatisticsByUserProfile]);
+  }, [activeTab, targetUserId, getStatisticsByUserProfile, userProfile]);
 
   useEffect(() => {
     const loadFollowList = async () => {
@@ -229,7 +227,9 @@ const UserProfile = () => {
                 </section>
               )}
 
-              {showReview && <ReviewList user={userProfile} />}
+              {showReview && (
+                <ReviewList user={userProfile} variant="default" />
+              )}
 
               {showFollower && (
                 <FollowList
