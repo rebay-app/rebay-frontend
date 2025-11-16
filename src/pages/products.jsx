@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
-import Footer from "../components/layout/Footer";
+// src/pages/Search.jsx
+import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
+
 import Header from "../components/layout/Header";
+import Footer from "../components/layout/Footer";
 import MainLayout from "../components/layout/MainLayout";
 import Product from "../components/products/product";
-import postService from "../services/post";
+
+import useSearchStore from "../store/searchStore";
 
 const CATEGORY_OPTIONS = [
   { value: "ALL", label: "전체" },
@@ -26,104 +30,101 @@ const SORTS = {
 
 const PAGE_SIZE = 10;
 
-const Products = () => {
-  const [allPosts, setAllPosts] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+export default function Search() {
+  const { searchPosts, results, loading } = useSearchStore();
+
+  const [params] = useSearchParams();
+  const initialKeyword = params.get("keyword") || "";
+  const initialTarget = params.get("target") || "TITLE";
 
   const [category, setCategory] = useState("ALL");
   const [sort, setSort] = useState(SORTS.LATEST);
   const [page, setPage] = useState(1);
 
+  // 첫 로딩 시 검색 실행
   useEffect(() => {
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    if (initialKeyword.trim()) {
+      searchPosts({
+        keyword: initialKeyword,
+        target: initialTarget,
+        page: 0,
+      });
+    }
+  }, [initialKeyword, initialTarget]);
 
-        const merged = [];
-        let p = 0;
-
-        while (true) {
-          const content = await postService.getAllPosts(p, PAGE_SIZE);
-          if (!content || content.length === 0) break;
-          merged.push(...content);
-          p += 1;
-        }
-
-        setAllPosts(merged);
-      } catch (e) {
-        setError(e?.response?.data?.message || e.message || "불러오기 실패");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
+  // 정렬/카테고리 바뀌면 페이지 리셋
   useEffect(() => {
     setPage(1);
   }, [category, sort]);
 
+  /** ============================
+   * 🔥 검색 결과 + 카테고리 + 정렬 적용
+   =============================== */
   const processed = useMemo(() => {
-    let rows = allPosts;
+    let filtered = [...results];
 
+    // 카테고리 필터
     if (category !== "ALL") {
-      rows = rows.filter((r) => r?.category === category);
+      filtered = filtered.filter((p) => p.category === category);
     }
 
-    const safeNum = (v) => (v == null ? Number.NEGATIVE_INFINITY : Number(v));
-    const safeStr = (s) => (s || "").toString();
+    // 정렬
+    const byNum = (v) => (v == null ? 0 : Number(v));
+    const byStr = (v) => (v || "").toString();
 
     switch (sort) {
       case SORTS.PRICE_ASC:
-        rows = [...rows].sort((a, b) => safeNum(a?.price) - safeNum(b?.price));
+        filtered.sort((a, b) => byNum(a.price) - byNum(b.price));
         break;
+
       case SORTS.PRICE_DESC:
-        rows = [...rows].sort((a, b) => safeNum(b?.price) - safeNum(a?.price));
+        filtered.sort((a, b) => byNum(b.price) - byNum(a.price));
         break;
+
       case SORTS.TITLE_ASC:
-        rows = [...rows].sort((a, b) =>
-          safeStr(a?.title).localeCompare(safeStr(b?.title))
-        );
+        filtered.sort((a, b) => byStr(a.title).localeCompare(byStr(b.title)));
         break;
+
       case SORTS.LATEST:
       default:
-        rows = [...rows].sort(
+        filtered.sort(
           (a, b) =>
-            new Date(b?.createdAt || 0).getTime() -
-            new Date(a?.createdAt || 0).getTime()
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
         );
         break;
     }
 
-    return rows;
-  }, [allPosts, category, sort]);
+    return filtered;
+  }, [results, category, sort]);
 
+  /** ============================
+   * 🔥 페이지네이션 처리
+   =============================== */
   const totalPages = Math.max(1, Math.ceil(processed.length / PAGE_SIZE));
+
   const paged = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return processed.slice(start, start + PAGE_SIZE);
   }, [processed, page]);
 
-  const goPrev = () => setPage((p) => Math.max(1, p - 1));
-  const goNext = () => setPage((p) => Math.min(totalPages, p + 1));
-
   return (
     <MainLayout>
       <Header />
+
       <main className="mt-[70px]">
         <section className="mx-auto w-full max-w-[1080px] px-3">
+          {/* 🔍 제목 + 필터 */}
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-presentation text-[22px] font-bold">
-              상품보기
+              검색 결과: {initialKeyword}
             </h2>
+
             <div className="flex items-center gap-2">
               {/* 카테고리 */}
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
                 className="border rounded-lg px-3 py-1.5"
-                aria-label="카테고리 선택"
               >
                 {CATEGORY_OPTIONS.map((c) => (
                   <option key={c.value} value={c.value}>
@@ -141,6 +142,7 @@ const Products = () => {
               >
                 최신
               </button>
+
               <button
                 onClick={() => setSort(SORTS.PRICE_ASC)}
                 className={`px-3 py-1.5 rounded-lg border ${
@@ -149,6 +151,7 @@ const Products = () => {
               >
                 가격 오름차순
               </button>
+
               <button
                 onClick={() => setSort(SORTS.PRICE_DESC)}
                 className={`px-3 py-1.5 rounded-lg border ${
@@ -157,6 +160,7 @@ const Products = () => {
               >
                 가격 내림차순
               </button>
+
               <button
                 onClick={() => setSort(SORTS.TITLE_ASC)}
                 className={`px-3 py-1.5 rounded-lg border ${
@@ -168,12 +172,16 @@ const Products = () => {
             </div>
           </div>
 
-          {loading && <div className="text-gray-500 mb-3">불러오는 중…</div>}
-          {error && <div className="text-red-600 mb-3">{error}</div>}
+          {/* ⏳ 로딩 */}
+          {loading && <div className="text-gray-500 mb-3">검색 중…</div>}
 
-          {!loading && processed.length === 0 ? (
-            <div className="text-gray-500 py-10">표시할 상품이 없어요.</div>
-          ) : (
+          {/* ❌ 결과 없음 */}
+          {!loading && processed.length === 0 && (
+            <div className="text-gray-500 py-10">검색 결과가 없습니다.</div>
+          )}
+
+          {/* 🔥 상품 리스트 */}
+          {!loading && processed.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {paged.map((post) => (
                 <Product key={post.id} post={post} />
@@ -181,10 +189,11 @@ const Products = () => {
             </div>
           )}
 
+          {/* 🔥 페이지네이션 */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-6">
               <button
-                onClick={goPrev}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
                 className="px-3 py-1.5 rounded-lg border disabled:opacity-40"
               >
@@ -207,7 +216,7 @@ const Products = () => {
               })}
 
               <button
-                onClick={goNext}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
                 className="px-3 py-1.5 rounded-lg border disabled:opacity-40"
               >
@@ -217,9 +226,8 @@ const Products = () => {
           )}
         </section>
       </main>
+
       <Footer />
     </MainLayout>
   );
-};
-
-export default Products;
+}
