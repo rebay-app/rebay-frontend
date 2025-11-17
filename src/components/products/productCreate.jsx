@@ -1,33 +1,124 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import postService from "../../services/post";
 import s3Service from "../../services/s3";
 import { FiEdit2, FiImage, FiTrash2 } from "react-icons/fi";
 import MainLayout from "../layout/MainLayout";
 import Header from "../layout/Header";
 import Footer from "../layout/Footer";
+import api from "../../services/api";
 
-const CATEGORY_OPTIONS = [
-  "DIGITAL_DEVICES",
-  "HOME_APPLIANCES",
-  "FURNITURE",
-  "HOME_KITCHEN",
-  "BOOKS",
-  "PLANTS",
-  "CLOTHES",
-  "OTHER_USED_ITEMS",
-];
+const CATEGORY_HIERARCHY = {
+  // Level 1: 대분류 (Large)
+  200: {
+    name: "전자기기",
+    children: {
+      210: {
+        name: "카메라",
+        children: {
+          211: { name: "DSLR/미러리스" },
+          212: { name: "일반 디지털 카메라" },
+        },
+      },
+      220: { name: "음향기기", children: {} },
+      230: { name: "게임/취미", children: {} },
+      240: {
+        name: "노트북/PC",
+        children: {
+          241: { name: "노트북" },
+          242: { name: "데스크탑/본체" },
+          243: { name: "모니터/주변기기" },
+        },
+      },
+      250: { name: "태블릿/웨어러블", children: {} },
+      260: {
+        name: "핸드폰",
+        children: {
+          261: { name: "아이폰13" },
+          262: { name: "아이폰13 mini" },
+          263: { name: "아이폰13 Pro" },
+          264: { name: "아이폰13 Pro Max" },
+          265: { name: "아이폰14" },
+          266: { name: "아이폰14 Pro" },
+          267: { name: "아이폰14 Pro Max" },
+          268: { name: "아이폰14 Plus" },
+          269: { name: "아이폰15" },
+          270: { name: "아이폰15 Pro" },
+          271: { name: "아이폰15 Pro Max" },
+          272: { name: "아이폰15 Plus" },
+          273: { name: "아이폰16" },
+          274: { name: "아이폰16 Pro" },
+          275: { name: "아이폰16 Pro Max" },
+          276: { name: "아이폰16 Plus" },
+          277: { name: "아이폰17" },
+          278: { name: "아이폰17 Air" },
+          279: { name: "아이폰17 Pro Max" },
+          281: { name: "기타 아이폰 모델" },
+          290: { name: "갤럭시/기타 안드로이드폰" },
+        },
+      },
+      280: { name: "디지털 액세서리", children: {} },
+    },
+  },
 
-const CATEGORY_LABELS = {
-  DIGITAL_DEVICES: "가전/디지털",
-  HOME_APPLIANCES: "생활가전",
-  FURNITURE: "가구",
-  HOME_KITCHEN: "주방/생활",
-  BOOKS: "도서",
-  PLANTS: "식물",
-  CLOTHES: "의류",
-  OTHER_USED_ITEMS: "기타 중고물품",
+  300: {
+    name: "생활가전",
+    children: {
+      310: { name: "대형가전", children: {} },
+      320: { name: "주방가전", children: {} },
+      330: { name: "미용/건강가전", children: {} },
+      340: { name: "계절가전", children: {} },
+    },
+  },
+
+  400: {
+    name: "가구/인테리어",
+    children: {
+      410: {
+        name: "침대/매트리스",
+        children: {
+          411: { name: "싱글침대" },
+          412: { name: "더블/퀸/킹 침대" },
+        },
+      },
+      420: { name: "소파/테이블", children: {} },
+      430: { name: "조명", children: {} },
+      440: { name: "수납/선반", children: {} },
+    },
+  },
+
+  500: {
+    name: "생활/주방",
+    children: {
+      510: { name: "조리도구", children: {} },
+      520: { name: "식기/컵", children: {} },
+      530: { name: "청소/세탁 용품", children: {} },
+    },
+  },
+
+  600: { name: "도서", children: {} },
+  700: { name: "식물/반려동물", children: {} },
+
+  800: {
+    name: "의류/잡화",
+    children: {
+      810: { name: "남성 의류", children: {} },
+      820: { name: "여성 의류", children: {} },
+      830: {
+        name: "가방/잡화",
+        children: {
+          831: { name: "명품 가방" },
+          832: { name: "지갑/벨트" },
+          833: { name: "시계" },
+        },
+      },
+    },
+  },
+
+  900: { name: "기타 중고 물품", children: {} },
 };
+
+const DEFAULT_LARGE_CODE = Object.keys(CATEGORY_HIERARCHY)[0] || "";
 
 const parseHashtags = (input) =>
   (input || "")
@@ -36,20 +127,22 @@ const parseHashtags = (input) =>
     .map((s) => s.replace(/^#/, "").trim())
     .filter(Boolean);
 
-const ProductCreate = ({
-  onCreated,
-  goBack,
-  defaultCategory = "DIGITAL_DEVICES",
-}) => {
+const ProductCreate = ({ onCreated, goBack }) => {
   const navigate = useNavigate();
+  const { postId } = useParams();
+  const isEdit = Boolean(postId);
 
   const [form, setForm] = useState({
     title: "",
     price: "",
-    category: defaultCategory,
+    finalCategoryCode: DEFAULT_LARGE_CODE,
     imageUrl: "",
     content: "",
   });
+
+  const [selectedLgCode, setSelectedLgCode] = useState(DEFAULT_LARGE_CODE);
+  const [selectedMdCode, setSelectedMdCode] = useState("");
+  const [selectedSmCode, setSelectedSmCode] = useState("");
 
   const [hashtagsInput, setHashtagsInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -61,6 +154,81 @@ const ProductCreate = ({
   const titleCount = useMemo(() => form.title.length, [form.title]);
   const onChange = (e) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
+
+  useEffect(() => {
+    if (!isEdit) return;
+    (async () => {
+      try {
+        const data = await postService.getPost(postId);
+        setForm({
+          title: data.title ?? "",
+          price: data.price ?? "",
+          imageUrl: data.imageUrl ?? "",
+          content: data.content ?? "",
+          category: data.category ?? defaultCategory,
+        });
+
+        if (data.imageUrl) {
+          try {
+            const r = await api.get(
+              `/api/upload/post/image?url=${encodeURIComponent(data.imageUrl)}`
+            );
+            setImagePreview(r?.data?.imageUrl || data.imageUrl);
+          } catch {
+            setImagePreview(data.imageUrl);
+          }
+        }
+        setHashtagsInput(
+          (data.hashtags || []).map((h) => h.name ?? h).join(" ")
+        );
+      } catch (e) {
+        console.error(e);
+        setError("상품 정보를 불러오지 못했습니다.");
+      }
+    })();
+  }, [isEdit, postId]);
+
+  useEffect(() => {
+    // 가장 깊게 선택된 코드를 최종 카테고리 코드로 설정
+    const finalCode = selectedSmCode || selectedMdCode || selectedLgCode;
+    setForm((s) => ({ ...s, finalCategoryCode: finalCode }));
+  }, [selectedLgCode, selectedMdCode, selectedSmCode]);
+
+  // 중분류 옵션 계산
+  const mdOptions = useMemo(() => {
+    const lg = CATEGORY_HIERARCHY[selectedLgCode];
+    return lg?.children || {};
+  }, [selectedLgCode]);
+
+  // 소분류 옵션 계산
+  const smOptions = useMemo(() => {
+    const md = mdOptions[selectedMdCode];
+    return md?.children || {};
+  }, [selectedMdCode, mdOptions]);
+
+  // 대분류 변경 핸들러
+  const handleLgChange = (e) => {
+    const newLgCode = e.target.value;
+    setSelectedLgCode(newLgCode);
+    setSelectedMdCode(""); // 중분류 초기화
+    setSelectedSmCode(""); // 소분류 초기화
+    setError(null);
+  };
+
+  // 중분류 변경 핸들러
+  const handleMdChange = (e) => {
+    const newMdCode = e.target.value;
+    setSelectedMdCode(newMdCode);
+    setSelectedSmCode(""); // 소분류 초기화
+    setError(null);
+  };
+
+  // 소분류 변경 핸들러
+  const handleSmChange = (e) => {
+    const newSmCode = e.target.value;
+    setSelectedSmCode(newSmCode);
+    setError(null);
+  };
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -91,40 +259,21 @@ const ProductCreate = ({
 
   const onPickImage = (e) => handleFile(e.target.files?.[0]);
 
-  const [catOpen, setCatOpen] = useState(false);
-  const catRef = useRef(null);
-  const toggleCat = () => setCatOpen((v) => !v);
-  const closeCat = () => setCatOpen(false);
-  const catLabel = CATEGORY_LABELS[form.category] || form.category;
-
-  useEffect(() => {
-    if (!catOpen) return;
-    const handleOutside = (e) => {
-      if (!catRef.current) return;
-      if (!catRef.current.contains(e.target)) closeCat();
-    };
-    const handleEsc = (e) => {
-      if (e.key === "Escape") closeCat();
-    };
-    document.addEventListener("mousedown", handleOutside);
-    document.addEventListener("keydown", handleEsc);
-    return () => {
-      document.removeEventListener("mousedown", handleOutside);
-      document.removeEventListener("keydown", handleEsc);
-    };
-  }, [catOpen]);
-
   const resetForm = () => {
     setForm({
       title: "",
       price: "",
-      category: defaultCategory,
+      finalCategoryCode: DEFAULT_LARGE_CODE,
       imageUrl: "",
       content: "",
     });
+    setSelectedLgCode(DEFAULT_LARGE_CODE);
+    setSelectedMdCode("");
+    setSelectedSmCode("");
     setHashtagsInput("");
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview("");
+    setError(null);
   };
 
   const handleCancel = () => {
@@ -138,11 +287,17 @@ const ProductCreate = ({
 
     resetForm();
     if (typeof goBack === "function") goBack();
-    else navigate("/");
+    else navigate(isEdit ? `/products/${postId}` : "/");
   };
 
   const onSubmit = async (e) => {
     e.preventDefault();
+
+    if (!form.finalCategoryCode) {
+      setError("카테고리를 선택해주세요.");
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -151,20 +306,36 @@ const ProductCreate = ({
         title: form.title?.trim(),
         content: form.content?.trim(),
         price: form.price === "" ? null : Number(form.price),
-        category: form.category,
+        categoryCode: form.finalCategoryCode,
         imageUrl: form.imageUrl || undefined,
         hashtags: parseHashtags(hashtagsInput),
       };
-
-      const data = await postService.createPost(payload);
-      onCreated?.(data);
-
-      resetForm();
-      navigate("/");
+      if (isEdit) {
+        const updated = await postService.updatePost(postId, payload);
+        resetForm();
+        navigate(`/products/${postId}`);
+      } else {
+        const data = await postService.createPost(payload);
+        onCreated?.(data);
+        resetForm();
+        navigate(`/products/${data.id}`);
+      }
     } catch (err) {
       setError(err?.response?.data?.message || err.message || "등록 실패");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onDelete = async () => {
+    if (!isEdit) return;
+    if (!window.confirm("정말 삭제할까요?")) return;
+    try {
+      await postService.deletePost(postId);
+      navigate("/products");
+    } catch (e) {
+      console.error(e);
+      alert("삭제 실패");
     }
   };
 
@@ -173,7 +344,10 @@ const ProductCreate = ({
       <Header />
       <div className="w-[960px] mx-auto p-6 font-presentation">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold">상품정보</h2>
+          <h2 className="text-xl font-semibold">
+            {isEdit ? "상품 수정" : "상품정보"}
+          </h2>
+
           {goBack && (
             <button
               onClick={goBack}
@@ -209,11 +383,14 @@ const ProductCreate = ({
               </label>
             ) : (
               <div className="relative group rounded-xl border overflow-hidden bg-gray-50">
-                <div className="w-full flex items-center justify-center">
+                <div className="w-full h-[520px] flex items-center justify-center">
                   <img
                     src={imagePreview}
                     alt="preview"
-                    className="max-w-full max-h-[520px] w-auto h-auto object-contain"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = "";
+                    }}
                   />
                 </div>
 
@@ -252,6 +429,128 @@ const ProductCreate = ({
           </section>
 
           <section>
+            <label
+              htmlFor="category-select"
+              className="block text-sm font-semibold mb-3 text-gray-700"
+            >
+              카테고리 선택 (필수)
+            </label>
+            {/* 3단계 계층형 드롭다운 */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* 1. 대분류 선택 */}
+              <div className="relative flex-1">
+                <select
+                  name="largeCategory"
+                  value={selectedLgCode}
+                  onChange={handleLgChange}
+                  required
+                  className="w-full rounded-xl border border-gray-300 px-4 appearance-none py-2.5 pr-10 bg-white text-base focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+                >
+                  {Object.entries(CATEGORY_HIERARCHY).map(([code, data]) => (
+                    <option key={code} value={code}>
+                      {data.name}
+                    </option>
+                  ))}
+                </select>
+                <svg
+                  className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
+
+              {/* 2. 중분류 선택 */}
+              <div className="relative flex-1">
+                <select
+                  name="mediumCategory"
+                  value={selectedMdCode}
+                  onChange={handleMdChange}
+                  disabled={Object.keys(mdOptions).length === 0}
+                  className={`w-full rounded-xl border px-4 appearance-none py-2.5 pr-10 bg-white text-base transition ${
+                    Object.keys(mdOptions).length === 0
+                      ? "border-gray-200 text-gray-400"
+                      : "border-gray-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                  }`}
+                >
+                  <option value="">
+                    {Object.keys(mdOptions).length === 0
+                      ? "하위 카테고리 없음"
+                      : "중분류 선택"}
+                  </option>
+                  {Object.entries(mdOptions).map(([code, data]) => (
+                    <option key={code} value={code}>
+                      {data.name}
+                    </option>
+                  ))}
+                </select>
+                <svg
+                  className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
+
+              {/* 3. 소분류 선택 */}
+              <div className="relative flex-1">
+                <select
+                  name="smallCategory"
+                  value={selectedSmCode}
+                  onChange={handleSmChange}
+                  disabled={Object.keys(smOptions).length === 0}
+                  className={`w-full rounded-xl border px-4 appearance-none py-2.5 pr-10 bg-white text-base transition ${
+                    Object.keys(smOptions).length === 0
+                      ? "border-gray-200 text-gray-400"
+                      : "border-gray-300 focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+                  }`}
+                >
+                  <option value="">
+                    {Object.keys(smOptions).length === 0
+                      ? "하위 카테고리 없음"
+                      : "소분류 선택"}
+                  </option>
+                  {Object.entries(smOptions).map(([code, data]) => (
+                    <option key={code} value={code}>
+                      {data.name}
+                    </option>
+                  ))}
+                </select>
+                <svg
+                  className="w-5 h-5 absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </div>
+            </div>
+          </section>
+
+          <section>
             <label className="block text-sm font-medium mb-2">상품명</label>
             <div className="relative">
               <input
@@ -267,60 +566,6 @@ const ProductCreate = ({
                 {titleCount}/40
               </span>
             </div>
-          </section>
-
-          <section ref={catRef}>
-            <label className="block text-sm font-medium mb-2">카테고리</label>
-
-            <button
-              type="button"
-              onClick={toggleCat}
-              onKeyDown={(e) =>
-                e.key === "Enter" || e.key === " " ? toggleCat() : null
-              }
-              className="w-full flex items-center justify-between rounded-lg border border-rebay-gray-400 px-4 py-2 text-left hover:bg-gray-50"
-              aria-expanded={catOpen}
-              aria-controls="category-panel"
-            >
-              <span className="text-sm">{catLabel}</span>
-              <svg
-                className={`w-4 h-4 transition-transform ${
-                  catOpen ? "rotate-180" : ""
-                }`}
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path d="M5.23 7.21a.75.75 0 011.06.02L10 11.188l3.71-3.957a.75.75 0 111.1 1.022l-4.25 4.53a.75.75 0 01-1.1 0l-4.25-4.53a.75.75 0 01.02-1.06z" />
-              </svg>
-            </button>
-
-            {catOpen && (
-              <div
-                id="category-panel"
-                className="mt-2 border border-rebay-gray-400 rounded-lg overflow-hidden"
-              >
-                <div className="max-h-60 overflow-y-auto">
-                  {CATEGORY_OPTIONS.map((c) => {
-                    const active = form.category === c;
-                    return (
-                      <button
-                        type="button"
-                        key={c}
-                        onClick={() => {
-                          setForm((s) => ({ ...s, category: c }));
-                          closeCat();
-                        }}
-                        className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 ${
-                          active ? "bg-gray-100 font-medium" : ""
-                        }`}
-                      >
-                        {CATEGORY_LABELS[c] || c}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </section>
 
           <section>
@@ -385,7 +630,13 @@ const ProductCreate = ({
               disabled={submitting || uploading}
               className="cursor-pointer px-5 py-2 rounded-lg bg-rebay-blue hover:opacity-90 text-white disabled:opacity-50"
             >
-              {submitting ? "등록 중..." : "등록하기"}
+              {isEdit
+                ? submitting
+                  ? "수정 중..."
+                  : "수정하기"
+                : submitting
+                ? "등록 중..."
+                : "등록하기"}
             </button>
           </section>
 
