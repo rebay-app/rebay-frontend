@@ -10,6 +10,9 @@ import Products from "./pages/products";
 import ProductCreate from "./components/products/productCreate";
 import CreateReview from "./components/review/createReview";
 import UserProduct from "./pages/userProduct";
+import Checkout from "./pages/checkout";
+import PaymentSuccess from "./pages/paymentSuccess";
+import PaymentFail from "./pages/paymentFail";
 
 const App = () => {
   return (
@@ -26,6 +29,9 @@ const App = () => {
         <Route path="/sell" element={<ProductCreate />} />
         <Route path="/createreview" element={<CreateReview />} />
         <Route path="/products/:postId" element={<UserProduct />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/fail" element={<PaymentFail />} />
       </Routes>
     </BrowserRouter>
   );

@@ -14,6 +14,7 @@ import useAuthStore from "../store/authStore";
 import useReviewStore from "../store/reviewStore";
 import ReviewList from "../components/review/reviewList";
 import useFollowStore from "../store/followStore";
+import { preparePayment } from "../services/payment";
 
 const priceFormat = (v) =>
   v == null
@@ -145,6 +146,20 @@ export default function UserProduct() {
     }
   };
 
+  //  결제 준비
+  const handlePurchase = async () => {
+    if (!post || !user) return;
+
+    try {
+      const res = await preparePayment(post.id, user.id, post.price);
+
+      navigate("/checkout", { state: { transaction: res } });
+    } catch (err) {
+      console.error("결제 준비 실패: ", err);
+      alert("결제 준비에 실패했습니다.");
+    }
+  };
+
   const categoryLabel = useMemo(
     () => CATEGORY_LABELS[post?.category] || "",
     [post?.category]
@@ -241,7 +256,10 @@ export default function UserProduct() {
               </div>
               {!isOwnProduct && (
                 <div className="pt-1">
-                  <button className="cursor-pointer inline-flex items-center justify-center rounded-lg bg-rebay-blue text-white px-7 py-3 text-[15px] shadow hover:shadow-md transition-all font-semibold hover:opacity-90">
+                  <button
+                    onClick={handlePurchase}
+                    className="cursor-pointer inline-flex items-center justify-center rounded-lg bg-rebay-blue text-white px-7 py-3 text-[15px] shadow hover:shadow-md transition-all font-semibold hover:opacity-90"
+                  >
                     구매하기
                   </button>
                 </div>
