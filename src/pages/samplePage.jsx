@@ -1,6 +1,4 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { FiEdit2, FiImage, FiTrash2 } from "react-icons/fi";
 import MainLayout from "../components/layout/MainLayout";
 import Header from "../components/layout/Header";
 import Footer from "../components/layout/Footer";

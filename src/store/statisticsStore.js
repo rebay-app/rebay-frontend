@@ -98,6 +98,24 @@ const useStatisticsStore = create((set) => ({
       throw err;
     }
   },
+
+  getTradeHistory: async (categoryCode) => {
+    set({ loading: true, error: null });
+    try {
+      const data = await statisticsService.getTradeHistory(categoryCode);
+      set({
+        loading: false,
+      });
+      console.log("시세", data);
+      return data;
+    } catch (err) {
+      set({
+        error: err.response?.data.message || "Failed to get trade history",
+        loading: false,
+      });
+      throw err;
+    }
+  },
 }));
 
 export default useStatisticsStore;
