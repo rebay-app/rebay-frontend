@@ -11,6 +11,10 @@ import ProductCreate from "./components/products/productCreate";
 import CreateReview from "./components/review/createReview";
 import UserProduct from "./pages/userProduct";
 import Search from "./pages/Search";
+import Checkout from "./pages/checkout";
+import PaymentSuccess from "./pages/paymentSuccess";
+import PaymentFail from "./pages/paymentFail";
+import TransactionDetail from "./pages/TransactionDetail";
 
 const App = () => {
   return (
@@ -29,6 +33,13 @@ const App = () => {
         <Route path="/createreview" element={<CreateReview />} />
         <Route path="/products/:postId" element={<UserProduct />} />
         <Route path="/search" element={<Search />} />
+        <Route path="/checkout" element={<Checkout />} />
+        <Route path="/payment/success" element={<PaymentSuccess />} />
+        <Route path="/payment/fail" element={<PaymentFail />} />
+        <Route
+          path="/transaction/:transactionId"
+          element={<TransactionDetail />}
+        />
       </Routes>
     </BrowserRouter>
   );
