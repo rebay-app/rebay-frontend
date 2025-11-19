@@ -5,6 +5,7 @@ import Login from "../auth/login";
 import Signup from "../auth/signup";
 import useAuthStore from "../../store/authStore";
 import useSearchStore from "../../store/searchStore";
+import NotificationBell from "../notification/NotificationBell";
 
 const Header = () => {
   const { user, logout } = useAuthStore();
@@ -31,6 +32,7 @@ const Header = () => {
 
   const handleLogout = () => {
     logout();
+    navigate("/");
     window.location.reload();
   };
 
@@ -76,7 +78,10 @@ const Header = () => {
             <img src="/image-Photoroom.png" alt="ReBay" className="w-30" />
           </Link>
 
-          <form onSubmit={handleSearch} className="flex items-center relative">
+          <form
+            onSubmit={handleSearch}
+            className="font-presentation flex items-center relative"
+          >
             <div className="flex items-center bg-rebay-search w-[400px] h-[40px] px-[20px] rounded-full">
               <select
                 value={target}
@@ -127,7 +132,9 @@ const Header = () => {
         </div>
 
         {user ? (
-          <nav className="items flex space-x-9 items-center">
+          <nav className="items flex space-x-4 items-center">
+            <NotificationBell />
+
             <Link
               to="/sell"
               className="font-presentation text-black text-[15px] font-medium cursor-pointer hover:text-gray-600"
