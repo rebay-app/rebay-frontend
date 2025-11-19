@@ -2,11 +2,11 @@ import { useCallback, useState } from "react";
 import useUserStore from "../../store/userStore";
 import { FiX } from "react-icons/fi";
 import Input from "../ui/Input";
-import ResetPassword from "./resetPassword";
+import { useNavigate } from "react-router-dom";
 
-const FindPassword = ({ onClose }) => {
+const FindPassword = ({ OnClose }) => {
+  const navigate = useNavigate();
   const { findPassword, resetPassword, loading, error } = useUserStore();
-
   const [loginIdForm, setLoginIdForm] = useState({ emailOrUsername: "" });
   const [actualFullName, setActualFullName] = useState(null);
   const [loginData, setLoginData] = useState(null);
@@ -18,11 +18,6 @@ const FindPassword = ({ onClose }) => {
   const [isIdSubmitted, setIsIdSubmitted] = useState(false);
   const [isVerified, setIsVerified] = useState(false); // fullName 인증 성공 여부
 
-  const [clientMessage, setClientMessage] = useState({
-    text: null,
-    type: "info",
-  });
-
   const isEmail = (value) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(value);
@@ -31,7 +26,6 @@ const FindPassword = ({ onClose }) => {
   const handleIdSubmit = useCallback(
     async (e) => {
       e.preventDefault();
-      setClientMessage({ text: null, type: "info" });
 
       const data = isEmail(loginIdForm.emailOrUsername)
         ? { email: loginIdForm.emailOrUsername }
@@ -46,16 +40,8 @@ const FindPassword = ({ onClose }) => {
         setIsIdSubmitted(true); // 2단계 UI로 전환
         // 이전 단계의 입력값 초기화
         setAuthForm((prev) => ({ ...prev, enteredFullName: "" }));
-        setClientMessage({
-          text: `${maskFullName(nameFromBackend)} 님의 본인 인증을 진행합니다.`,
-          type: "info",
-        });
       } catch (err) {
         console.error(err);
-        setClientMessage({
-          text: err.message || "로그인 ID를 찾을 수 없거나 서버 오류입니다.",
-          type: "error",
-        });
         setActualFullName(null);
         setIsIdSubmitted(false);
       }
@@ -66,7 +52,6 @@ const FindPassword = ({ onClose }) => {
   const handleVerification = useCallback(
     (e) => {
       e.preventDefault();
-      setClientMessage({ text: null, type: "info" });
 
       if (authForm.enteredFullName === actualFullName) {
         setIsVerified(true);
@@ -76,15 +61,7 @@ const FindPassword = ({ onClose }) => {
           newPassword: "",
           confirmPassword: "",
         }));
-        setClientMessage({
-          text: "본인 인증에 성공했습니다. 새 비밀번호를 설정해주세요.",
-          type: "success",
-        });
       } else {
-        setClientMessage({
-          text: "입력하신 이름이 일치하지 않습니다.",
-          type: "error",
-        });
         setIsVerified(false);
       }
     },
@@ -94,23 +71,14 @@ const FindPassword = ({ onClose }) => {
   const handleResetPassword = useCallback(
     async (e) => {
       e.preventDefault();
-      setClientMessage({ text: null, type: "info" });
 
       const { newPassword, confirmPassword } = authForm;
 
       if (newPassword !== confirmPassword) {
-        setClientMessage({
-          text: "새 비밀번호가 일치하지 않습니다.",
-          type: "error",
-        });
         return;
       }
 
-      if (newPassword.length < 8) {
-        setClientMessage({
-          text: "새 비밀번호는 최소 8자 이상이어야 합니다.",
-          type: "error",
-        });
+      if (newPassword.length < 6) {
         return;
       }
 
@@ -121,16 +89,10 @@ const FindPassword = ({ onClose }) => {
 
       try {
         await resetPassword(dataToSend);
-        setClientMessage({
-          text: "비밀번호가 성공적으로 변경되었습니다. 창을 닫아주세요.",
-          type: "success",
-        });
+        alert("비밀번호가 성공적으로 변경되었습니다.");
+        OnClose();
       } catch (err) {
         console.error(err);
-        setClientMessage({
-          text: err.message || "비밀번호 재설정 중 오류가 발생했습니다.",
-          type: "error",
-        });
       }
     },
     [authForm.newPassword, authForm.confirmPassword, loginData, resetPassword]
@@ -169,41 +131,113 @@ const FindPassword = ({ onClose }) => {
 
   return (
     <div>
-      <div className="w-[350px]">
-        <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-2xl ">
+      <div className="font-presentation w-[350px]">
+        <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-2xl transition-all duration-300 border border-gray-100">
           <div className="flex justify-end pt-4 pr-4">
-            <FiX onClick={onClose} className="cursor-pointer" />
+            <FiX
+              onClick={OnClose}
+              className="cursor-pointer text-gray-500 hover:text-gray-800 transition"
+              size={20}
+            />
           </div>
-          <div className="px-12 py-6">
+
+          <div className="px-10 py-6">
+            <h2 className="text-xl font-extrabold text-gray-800 mb-6 text-center">
+              {!isIdSubmitted
+                ? "로그인 ID를 입력해주세요."
+                : isVerified
+                ? "새 비밀번호를 설정해주세요."
+                : "본인 확인을 위해 전체 이름을 입력해주세요."}
+            </h2>
+
             <form
-              className="font-presentation flex flex-col gap-[15px]"
-              onSubmit={handleSubmit}
+              className="flex flex-col gap-[15px]"
+              onSubmit={
+                !isIdSubmitted
+                  ? handleIdSubmit
+                  : isVerified
+                  ? handleResetPassword
+                  : handleVerification
+              }
             >
-              <div className="flex ">
-                <div>로그인 ID를 입력해주세요.</div>
-              </div>
-              <Input
-                type="text"
-                name="emailOrUsername"
-                placeholder="Email address or Username"
-                value={formData.emailOrUsername}
-                onChange={handleChange}
-                required
-              />
+              {/* ID 입력 폼 */}
+              {!isIdSubmitted && (
+                <Input
+                  type="text"
+                  name="emailOrUsername"
+                  placeholder="Email address or Username"
+                  value={loginIdForm.emailOrUsername}
+                  onChange={handleIdChange}
+                  required
+                />
+              )}
+
+              {/* fullName 인증 폼 */}
+              {isIdSubmitted && !isVerified && (
+                <>
+                  <div className="flex items-center justify-between text-sm font-semibold p-2 bg-gray-100 rounded-lg">
+                    <label className="text-gray-500">확인 이름:</label>
+                    <label className="text-lg font-mono text-rebay-blue">
+                      {maskedName}
+                    </label>
+                  </div>
+                  <Input
+                    type="text"
+                    name="enteredFullName"
+                    placeholder="마스킹 처리 전 전체 이름 입력"
+                    value={authForm.enteredFullName}
+                    onChange={handleAuthChange}
+                    required
+                  />
+                </>
+              )}
+
+              {/* 비밀번호 재설정 폼 */}
+              {isVerified && (
+                <>
+                  <Input
+                    type="password"
+                    name="newPassword"
+                    placeholder="새 비밀번호 (최소 6자)"
+                    value={authForm.newPassword}
+                    onChange={handleAuthChange}
+                    required
+                  />
+                  <Input
+                    type="password"
+                    name="confirmPassword"
+                    placeholder="새 비밀번호 확인"
+                    value={authForm.confirmPassword}
+                    onChange={handleAuthChange}
+                    required
+                  />
+                </>
+              )}
+
               <button
-                className="cursor-pointer mt-4 bg-rebay-blue w-full h-[40px] rounded-xl text-white font-bold"
+                className="cursor-pointer mt-4 bg-rebay-blue hover:opacity-90 w-full h-[45px] rounded-xl text-white font-bold transition duration-150 shadow-lg disabled:bg-gray-400 disabled:shadow-none"
                 type="submit"
-                disabled={loading || !formData.emailOrUsername}
+                disabled={
+                  loading ||
+                  (!isVerified && isIdSubmitted && !authForm.enteredFullName)
+                }
               >
-                {loading ? "확인 중..." : "확인"}
+                {loading
+                  ? isVerified
+                    ? "재설정 중..."
+                    : "확인 중..."
+                  : !isIdSubmitted
+                  ? "확인"
+                  : isVerified
+                  ? "비밀번호 재설정"
+                  : "본인 인증"}
               </button>
             </form>
 
-            {error && <p className="text-error">{error}</p>}
+            {error && <p className={`text-sm mt-3 text-center `}>{error}</p>}
           </div>
         </div>
       </div>
-      {<ResetPassword LoginData={LoginData} fullName={fullName} />}
     </div>
   );
 };
