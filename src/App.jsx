@@ -15,6 +15,7 @@ import Checkout from "./pages/checkout";
 import PaymentSuccess from "./pages/paymentSuccess";
 import PaymentFail from "./pages/paymentFail";
 import TransactionDetail from "./pages/TransactionDetail";
+import FindPassword from "./components/auth/findPassword";
 
 import { useEffect } from "react";
 import ChatPage from "./pages/chat/ChatPage";
@@ -52,6 +53,7 @@ const App = () => {
           element={<TransactionDetail />}
         />
         <Route path="/chat/:roomId" element={<ChatPage />} />
+        <Route path="/findpw" element={<FindPassword />} />
       </Routes>
     </BrowserRouter>
   );
