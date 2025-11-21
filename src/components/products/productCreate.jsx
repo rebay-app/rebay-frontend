@@ -10,7 +10,7 @@ import Footer from "../layout/Footer";
 import api from "../../services/api";
 
 import aiService from "../../services/ai";
-import { FiCpu } from "react-icons/fi"; // 아이콘 (없으면 react-icons 설치 필요, 아니면 텍스트로 대체)
+import { FiCpu } from "react-icons/fi";
 
 /** ========== 카테고리 계층 ========== */
 const CATEGORY_HIERARCHY = {
@@ -98,7 +98,8 @@ const ProductCreate = ({ onCreated, goBack }) => {
   });
 
   /** ========== 이미지 배열 상태 (다중 업로드) ========== */
-  const [images, setImages] = useState([]); // { id, preview, url }[]
+  // images: { id, preview, url, file? }[]
+  const [images, setImages] = useState([]);
   const dragIndexRef = useRef(null);
 
   /** 카테고리 */
@@ -112,8 +113,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
-  const [imagePreview, setImagePreview] = useState("");
-
+  // AI 분석용
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [fileForAi, setFileForAi] = useState(null); // 분석할 원본 파일 저장
 
@@ -213,6 +213,11 @@ const ProductCreate = ({ onCreated, goBack }) => {
   };
 
   const handleFiles = async (files) => {
+    // 첫 번째 파일을 AI 분석용으로 저장
+    if (files[0]) {
+      setFileForAi(files[0]);
+    }
+
     const localItems = files.map((file) => ({
       id: crypto.randomUUID(),
       preview: URL.createObjectURL(file),
@@ -220,11 +225,6 @@ const ProductCreate = ({ onCreated, goBack }) => {
       url: null,
     }));
 
-    setFileForAi(file); // [추가] AI 분석을 위해 원본 파일 저장
-
-    const localUrl = URL.createObjectURL(file);
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(localUrl);
     setImages((prev) => [...prev, ...localItems]);
 
     try {
@@ -242,6 +242,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
       }
     } catch (err) {
       console.error("업로드 실패:", err);
+      // 업로드 실패한 로컬 이미지 제거
       setImages((prev) =>
         prev.filter((p) => !localItems.some((li) => li.id === p.id))
       );
@@ -321,12 +322,9 @@ const ProductCreate = ({ onCreated, goBack }) => {
           foundMd = "",
           foundSm = "";
 
-        // 계층 구조 탐색 (대분류 -> 중분류 -> 소분류)
-        // CATEGORY_HIERARCHY는 컴포넌트 외부에 정의되어 있으므로 바로 접근 가능
         outerLoop: for (const [lgKey, lgVal] of Object.entries(
           CATEGORY_HIERARCHY
         )) {
-          // 대분류 자체가 타겟인 경우
           if (lgKey === targetCode) {
             foundLg = lgKey;
             break;
@@ -334,7 +332,6 @@ const ProductCreate = ({ onCreated, goBack }) => {
 
           const mdChildren = lgVal.children || {};
           for (const [mdKey, mdVal] of Object.entries(mdChildren)) {
-            // 중분류가 타겟인 경우
             if (mdKey === targetCode) {
               foundLg = lgKey;
               foundMd = mdKey;
@@ -342,8 +339,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
             }
 
             const smChildren = mdVal.children || {};
-            for (const [smKey, _] of Object.entries(smChildren)) {
-              // 소분류가 타겟인 경우
+            for (const [smKey] of Object.entries(smChildren)) {
               if (smKey === targetCode) {
                 foundLg = lgKey;
                 foundMd = mdKey;
@@ -354,10 +350,9 @@ const ProductCreate = ({ onCreated, goBack }) => {
           }
         }
 
-        // 찾은 값으로 상태 업데이트 (UI 반영)
         if (foundLg) setSelectedLgCode(foundLg);
-        if (foundMd) setSelectedMdCode(foundMd); // 없으면 "" (초기화)
-        if (foundSm) setSelectedSmCode(foundSm);
+        setSelectedMdCode(foundMd || "");
+        setSelectedSmCode(foundSm || "");
       }
 
       alert("AI 분석이 완료되었습니다!");
@@ -447,22 +442,22 @@ const ProductCreate = ({ onCreated, goBack }) => {
         <form onSubmit={onSubmit} className="space-y-8">
           {/* 이미지 업로드 */}
           <section>
-            <label className="block text-sm font-medium mb-2">상품이미지</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium">상품이미지</label>
 
-            {/* [추가] AI 버튼 */}
-            {imagePreview && (
+              {/* AI 버튼 */}
               <button
                 type="button"
                 onClick={handleAiAnalysis}
-                disabled={isAnalyzing}
+                disabled={isAnalyzing || !fileForAi}
                 className={`
-                     flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm
-                     ${
-                       isAnalyzing
-                         ? "bg-gray-400 cursor-wait"
-                         : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-md hover:-translate-y-0.5"
-                     }
-                   `}
+                  flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm
+                  ${
+                    isAnalyzing || !fileForAi
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-md hover:-translate-y-0.5"
+                  }
+                `}
               >
                 <FiCpu
                   size={14}
@@ -470,65 +465,8 @@ const ProductCreate = ({ onCreated, goBack }) => {
                 />
                 {isAnalyzing ? "AI 분석 중..." : "✨ AI 자동 채우기"}
               </button>
-            )}
+            </div>
 
-            {!imagePreview ? (
-              <label
-                className="group relative w-full min-h-[260px] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition cursor-pointer"
-                title="이미지를 클릭해서 선택"
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onPickImage}
-                />
-                <div className="flex items-center gap-2 text-sm">
-                  <FiImage className="text-xl opacity-80" />
-                  <span className="font-medium">이미지 등록</span>
-                </div>
-                {uploading && (
-                  <span className="text-xs mt-2">업로드 중...</span>
-                )}
-              </label>
-            ) : (
-              <div className="relative group rounded-xl border overflow-hidden bg-gray-50">
-                <div className="w-full h-[520px] flex items-center justify-center">
-                  <img
-                    src={imagePreview}
-                    alt="preview"
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      e.currentTarget.src = "";
-                    }}
-                  />
-                </div>
-
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/0 via-black/0 to-black/10 opacity-0 group-hover:opacity-100 transition" />
-                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                  <label className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-sm shadow-sm hover:bg-white cursor-pointer">
-                    <FiEdit2 />
-                    <span className="hidden sm:inline">
-                      {uploading ? "업로드 중..." : "이미지 변경"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={onPickImage}
-                      disabled={uploading}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (imagePreview) URL.revokeObjectURL(imagePreview);
-                      setImagePreview("");
-                      setForm((s) => ({ ...s, imageUrl: "" }));
-                    }}
-                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-sm shadow-sm hover:bg-white"
-                    disabled={uploading}
             <label className="group relative w-full min-h-[260px] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition cursor-pointer">
               <input
                 type="file"
@@ -585,6 +523,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
           </section>
 
           {/* 아래는 카테고리 ~ 등록 부분 그 원본 그대로 유지 */}
+
           {/* 카테고리 선택 */}
           <section>
             <label
