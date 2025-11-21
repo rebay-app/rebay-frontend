@@ -55,7 +55,6 @@ const App = () => {
           element={<TransactionDetail />}
         />
         <Route path="/user/:id/transactions" element={<UserTransactions />} />
-
         <Route path="/chat" element={<ChatList />} />
         <Route path="/chat/:roomId" element={<ChatPage />} />
         <Route path="/findpw" element={<FindPassword />} />
