@@ -1,4 +1,4 @@
-// ✅ src/pages/userProduct.jsx
+// src/pages/userProduct.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
@@ -29,6 +29,7 @@ const priceFormat = (v) =>
         Number(v)
       );
 
+// --- 카테고리 테이블 (네 코드 그대로) ---
 const CATEGORY_HIERARCHY = {
   200: {
     name: "전자기기",
@@ -151,6 +152,40 @@ const timeAgo = (isoStr) => {
   return `${day}일 전`;
 };
 
+// 여러 장 키 안전 추출
+function extractImageKeys(post) {
+  if (!post) return [];
+  const candidates = [
+    post.imageUrls,
+    post.images,
+    post.imageList,
+    post.photos,
+    post.files,
+    post.attachments,
+    post.postImages,
+    post.imageKeys,
+  ].filter(Boolean);
+
+  for (const cand of candidates) {
+    if (Array.isArray(cand) && cand.length > 0) {
+      const arr = cand
+        .map((it) => {
+          if (typeof it === "string") return it;
+          if (!it || typeof it !== "object") return null;
+          return (
+            it.imageUrl || it.url || it.key || it.path || it.fileKey || null
+          );
+        })
+        .filter((s) => typeof s === "string" && s.trim());
+      if (arr.length) return arr;
+    }
+  }
+  if (typeof post.imageUrl === "string" && post.imageUrl.trim()) {
+    return [post.imageUrl.trim()];
+  }
+  return [];
+}
+
 export default function UserProduct() {
   const { postId } = useParams();
   const navigate = useNavigate();
@@ -161,7 +196,11 @@ export default function UserProduct() {
 
   const [isfollowing, setIsFollowing] = useState(null);
   const [post, setPost] = useState(null);
-  const [imgUrl, setImgUrl] = useState(null);
+
+  // 캐러셀 상태
+  const [images, setImages] = useState([]); // 표시용 URL들(프리사인 or 공개)
+  const [current, setCurrent] = useState(0);
+
   const [loading, setLoading] = useState(true);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
@@ -176,29 +215,49 @@ export default function UserProduct() {
     following: 0,
   });
 
+  // 상세 + presign (postId 바뀌면 항상 재호출)
   useEffect(() => {
     const fetchPost = async () => {
+      if (fetchedRef.current) return; // ❌ 두 번째 실행 방지
+      fetchedRef.current = true;
       try {
         setLoading(true);
-        const res = await api.get(`/api/posts/${postId}`); // ✅ 항상 조회수 +1
+        const res = await api.get(`/api/posts/${postId}`); // 조회수 +1
         const data = res.data;
 
         if (!data) {
           setPost(null);
-          setLoading(false);
+          setImages([]);
           return;
         }
 
         setPost(data);
-        console.log(data);
-        if (data.imageUrl) {
-          const imgRes = await api.get(
-            `/api/upload/post/image?url=${encodeURIComponent(data.imageUrl)}`
-          );
-          setImgUrl(imgRes?.data?.imageUrl || data.imageUrl);
+
+        const keys = extractImageKeys(data);
+        if (keys.length) {
+          try {
+            const urls = await Promise.all(
+              keys.map(async (k) => {
+                try {
+                  const r = await api.get(
+                    `/api/upload/post/image?url=${encodeURIComponent(k)}`
+                  );
+                  return r?.data?.imageUrl || k;
+                } catch {
+                  return k;
+                }
+              })
+            );
+            setImages(urls);
+            setCurrent(0);
+          } catch {
+            setImages(keys);
+            setCurrent(0);
+          }
         } else {
-          setImgUrl(null);
+          setImages([]);
         }
+
         const rawLiked = localStorage.getItem(`liked:${postId}`);
         const rawCount = localStorage.getItem(`likeCount:${postId}`);
         setLiked(rawLiked ? JSON.parse(rawLiked) : false);
@@ -206,18 +265,16 @@ export default function UserProduct() {
       } catch (err) {
         console.error("❌ 상품 조회 실패:", err);
         setPost(null);
+        setImages([]);
       } finally {
         setLoading(false);
       }
     };
 
-    // React StrictMode 대비
-    if (!fetchedRef.current) {
-      fetchedRef.current = true;
-      fetchPost();
-    }
+    fetchPost();
   }, [postId]);
 
+  // 판매자
   useEffect(() => {
     const fetchSeller = async () => {
       try {
@@ -227,9 +284,8 @@ export default function UserProduct() {
         console.error("❌ 유저 조회 실패:", err);
       }
     };
-
-    fetchSeller();
-  }, [post]);
+    if (post?.user?.id) fetchSeller();
+  }, [post?.user?.id, post?.user?.following, getStatisticsByUserProfile]);
 
   const handleToggleFollow = async () => {
     await toggleFollow(post?.user?.id);
@@ -246,7 +302,7 @@ export default function UserProduct() {
       setLiked(isLiked);
       setLikeCount(likeCount);
       localStorage.setItem(`liked:${postId}`, JSON.stringify(isLiked));
-      localStorage.setItem(`likeCount:${post.id}`, String(likeCount)); // ✅ 추가
+      localStorage.setItem(`likeCount:${postId}`, String(likeCount)); // ✅ 키 통일
     } catch (e) {
       console.error("좋아요 실패:", e);
     }
@@ -266,45 +322,29 @@ export default function UserProduct() {
     }
   };
 
+  // 카테고리 라벨
   const findCategoryName = (code) => {
-    if (!code) {
-      return "";
-    }
-
-    if (CATEGORY_HIERARCHY[code]) {
-      return CATEGORY_HIERARCHY[code].name;
-    }
-
+    if (!code) return "";
+    if (CATEGORY_HIERARCHY[code]) return CATEGORY_HIERARCHY[code].name;
     const searchRecursive = (children) => {
       for (const key in children) {
-        if (!Object.prototype.hasOwnProperty.call(children, key)) {
-          continue;
-        }
-
+        if (!Object.prototype.hasOwnProperty.call(children, key)) continue;
         const currentCode = parseInt(key, 10);
         const currentCategory = children[key];
-
-        if (currentCode === code) {
-          return currentCategory.name;
-        }
-
+        if (currentCode === code) return currentCategory.name;
         if (currentCategory.children) {
           const foundName = searchRecursive(currentCategory.children);
-          if (foundName) {
-            return foundName;
-          }
+          if (foundName) return foundName;
         }
       }
       return null;
     };
 
     for (const rootCode in CATEGORY_HIERARCHY) {
-      if (Object.prototype.hasOwnProperty.call(CATEGORY_HIERARCHY, rootCode)) {
-        const found = searchRecursive(CATEGORY_HIERARCHY[rootCode].children);
-        if (found) {
-          return found;
-        }
-      }
+      if (!Object.prototype.hasOwnProperty.call(CATEGORY_HIERARCHY, rootCode))
+        continue;
+      const found = searchRecursive(CATEGORY_HIERARCHY[rootCode].children);
+      if (found) return found;
     }
 
     return "";
@@ -315,16 +355,12 @@ export default function UserProduct() {
     [post?.categoryCode]
   );
 
+  // 시세
   useEffect(() => {
     const fetchTradeHistory = async () => {
-      if (!post?.categoryCode) {
-        return;
-      }
-
-      const code = post.categoryCode;
-
+      if (!post?.categoryCode) return;
       try {
-        const history = await getTradeHistory(code);
+        const history = await getTradeHistory(post.categoryCode);
         setTradeHistoryList(history);
       } catch (err) {
         console.error("❌ 거래 시세 조회 실패:", err);
@@ -333,6 +369,15 @@ export default function UserProduct() {
 
     fetchTradeHistory();
   }, [post?.categoryCode, getTradeHistory]);
+
+  // 캐러셀 조작
+  const prev = () =>
+    setCurrent((i) =>
+      images.length ? (i - 1 + images.length) % images.length : 0
+    );
+  const next = () =>
+    setCurrent((i) => (images.length ? (i + 1) % images.length : 0));
+  const go = (idx) => setCurrent(idx);
 
   if (loading)
     return (
@@ -358,6 +403,7 @@ export default function UserProduct() {
     <MainLayout>
       <Header />
       <div className="max-w-[1100px] mx-auto px-4 py-6 font-presentation">
+        {/* 상단 버튼 줄 */}
         <div className="mb-4 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}
@@ -393,9 +439,9 @@ export default function UserProduct() {
           )}
         </div>
 
-        {/* 상단 */}
+        {/* 상단 영역 */}
         <section className="grid grid-cols-12 gap-8">
-          {/* 이미지 */}
+          {/* 이미지 캐러셀 */}
           <div className="col-span-12 md:col-span-6">
             <div className="relative rounded-2xl border border-rebay-gray-400 shadow p-2 bg-gray-50">
               <button
@@ -413,17 +459,54 @@ export default function UserProduct() {
                 </span>
               </button>
 
-              <div className="w-[420px] h-[420px] rounded-xl overflow-hidden flex items-center justify-center bg-white">
-                {imgUrl ? (
+              <div className="w-[420px] h-[420px] rounded-xl overflow-hidden flex items-center justify-center bg-white relative mx-auto">
+                {images.length > 0 ? (
                   <img
-                    src={imgUrl || undefined}
+                    src={images[current]}
                     alt={post?.title || "상품 이미지"}
-                    className="max-h-[420px] w-auto object-contain"
+                    className="max-h-[420px] w-auto object-contain select-none"
+                    onError={(e) =>
+                      (e.currentTarget.style.visibility = "hidden")
+                    }
                   />
                 ) : (
                   <div className="w-full h-full bg-gray-100" />
                 )}
+
+                {images.length > 1 && (
+                  <>
+                    <button
+                      onClick={prev}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full w-8 h-8 flex items-center justify-center shadow"
+                      aria-label="이전 이미지"
+                    >
+                      ‹
+                    </button>
+                    <button
+                      onClick={next}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white rounded-full w-8 h-8 flex items-center justify-center shadow"
+                      aria-label="다음 이미지"
+                    >
+                      ›
+                    </button>
+                  </>
+                )}
               </div>
+
+              {images.length > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-3">
+                  {images.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => go(idx)}
+                      className={`w-2.5 h-2.5 rounded-full ${
+                        current === idx ? "bg-gray-800" : "bg-gray-300"
+                      }`}
+                      aria-label={`이미지 ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -521,7 +604,7 @@ export default function UserProduct() {
                     </button>
                   )
                 ) : (
-                  <div></div>
+                  <div />
                 )}
               </div>
 
@@ -533,7 +616,7 @@ export default function UserProduct() {
           </div>
         </section>
 
-        {tradeHistoryList.length != 0 && (
+        {tradeHistoryList.length !== 0 && (
           <section className="my-6 p-2 font-presentation w-full h-auto border border-rebay-gray-400 rounded-2xl">
             <TradeChart tradeHistoryList={tradeHistoryList} />
           </section>

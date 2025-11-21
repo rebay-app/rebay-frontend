@@ -1,13 +1,15 @@
+// src/components/products/ProductCreate.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import postService from "../../services/post";
 import s3Service from "../../services/s3";
-import { FiEdit2, FiImage, FiTrash2 } from "react-icons/fi";
+import { FiImage, FiX } from "react-icons/fi";
 import MainLayout from "../layout/MainLayout";
 import Header from "../layout/Header";
 import Footer from "../layout/Footer";
 import api from "../../services/api";
 
+/** ========== 카테고리 계층 ========== */
 const CATEGORY_HIERARCHY = {
   // Level 1: 대분류 (Large)
   200: {
@@ -120,6 +122,7 @@ const CATEGORY_HIERARCHY = {
 
 const DEFAULT_LARGE_CODE = Object.keys(CATEGORY_HIERARCHY)[0] || "";
 
+/** ========== 유틸 ========== */
 const parseHashtags = (input) =>
   (input || "")
     .replaceAll(",", " ")
@@ -127,19 +130,38 @@ const parseHashtags = (input) =>
     .map((s) => s.replace(/^#/, "").trim())
     .filter(Boolean);
 
+function findCategoryPath(finalCode) {
+  if (!finalCode) return { lg: DEFAULT_LARGE_CODE, md: "", sm: "" };
+  for (const [lg, lgNode] of Object.entries(CATEGORY_HIERARCHY)) {
+    if (lg === String(finalCode)) return { lg, md: "", sm: "" };
+    for (const [md, mdNode] of Object.entries(lgNode.children || {})) {
+      if (md === String(finalCode)) return { lg, md, sm: "" };
+      for (const [sm] of Object.entries(mdNode.children || {})) {
+        if (sm === String(finalCode)) return { lg, md, sm };
+      }
+    }
+  }
+  return { lg: DEFAULT_LARGE_CODE, md: "", sm: "" };
+}
+
+/** ========== 컴포넌트 ========== */
 const ProductCreate = ({ onCreated, goBack }) => {
   const navigate = useNavigate();
   const { postId } = useParams();
   const isEdit = Boolean(postId);
 
+  // form
   const [form, setForm] = useState({
     title: "",
     price: "",
     finalCategoryCode: DEFAULT_LARGE_CODE,
-    imageUrl: "",
     content: "",
   });
 
+  // images: [{id, preview, url, file?}]
+  const [images, setImages] = useState([]);
+
+  // category selects
   const [selectedLgCode, setSelectedLgCode] = useState(DEFAULT_LARGE_CODE);
   const [selectedMdCode, setSelectedMdCode] = useState("");
   const [selectedSmCode, setSelectedSmCode] = useState("");
@@ -149,36 +171,68 @@ const ProductCreate = ({ onCreated, goBack }) => {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
-  const [imagePreview, setImagePreview] = useState("");
+  const dragIndexRef = useRef(null);
 
   const titleCount = useMemo(() => form.title.length, [form.title]);
   const onChange = (e) =>
     setForm((s) => ({ ...s, [e.target.name]: e.target.value }));
 
+  /** 편집: 기존 데이터 로드 */
   useEffect(() => {
     if (!isEdit) return;
     (async () => {
       try {
         const data = await postService.getPost(postId);
 
+        // 카테고리
+        const finalCode = data.categoryCode ?? DEFAULT_LARGE_CODE;
         setForm({
           title: data.title ?? "",
           price: data.price ?? "",
-          imageUrl: data.imageUrl ?? "",
+          finalCategoryCode: finalCode,
           content: data.content ?? "",
-          finalCategoryCode: data.categoryCode ?? DEFAULT_LARGE_CODE,
         });
 
-        if (data.imageUrl) {
-          try {
-            const r = await api.get(
-              `/api/upload/post/image?url=${encodeURIComponent(data.imageUrl)}`
-            );
-            setImagePreview(r?.data?.imageUrl || data.imageUrl);
-          } catch {
-            setImagePreview(data.imageUrl);
-          }
+        // 선택된 셀렉트 복원
+        const path = findCategoryPath(String(finalCode));
+        setSelectedLgCode(path.lg);
+        setSelectedMdCode(path.md);
+        setSelectedSmCode(path.sm);
+
+        // 이미지들: imageUrls 있으면 그걸로, 없으면 imageUrl 단일로
+        const urlList =
+          (Array.isArray(data.imageUrls) && data.imageUrls.length
+            ? data.imageUrls
+            : data.imageUrl
+            ? [data.imageUrl]
+            : []) || [];
+
+        if (urlList.length) {
+          const items = await Promise.all(
+            urlList.map(async (orig) => {
+              const isAbs = /^https?:\/\//i.test((orig || "").trim());
+              if (isAbs) {
+                return { display: orig, original: orig };
+              }
+              try {
+                const r = await api.get(
+                  `/api/upload/post/image?url=${encodeURIComponent(orig)}`
+                );
+                return { display: r?.data?.imageUrl || orig, original: orig };
+              } catch {
+                return { display: orig, original: orig };
+              }
+            })
+          );
+          setImages(
+            items.map(({ display, original }) => ({
+              id: crypto.randomUUID(),
+              preview: display, // 화면표시(만료 가능)
+              url: original, // 서버 저장용 원본 키/URL
+            }))
+          );
         }
+
         setHashtagsInput(
           (data.hashtags || []).map((h) => h.name ?? h).join(" ")
         );
@@ -189,13 +243,14 @@ const ProductCreate = ({ onCreated, goBack }) => {
     })();
   }, [isEdit, postId]);
 
+  /** finalCategoryCode 갱신 */
   useEffect(() => {
     // 가장 깊게 선택된 코드를 최종 카테고리 코드로 설정
     const finalCode = selectedSmCode || selectedMdCode || selectedLgCode;
     setForm((s) => ({ ...s, finalCategoryCode: finalCode }));
   }, [selectedLgCode, selectedMdCode, selectedSmCode]);
 
-  // 중분류 옵션 계산
+  /** 셀렉트 옵션 */
   const mdOptions = useMemo(() => {
     const lg = CATEGORY_HIERARCHY[selectedLgCode];
     return lg?.children || {};
@@ -207,80 +262,139 @@ const ProductCreate = ({ onCreated, goBack }) => {
     return md?.children || {};
   }, [selectedMdCode, mdOptions]);
 
-  // 대분류 변경 핸들러
+  /** 셀렉트 핸들러 */
   const handleLgChange = (e) => {
-    const newLgCode = e.target.value;
-    setSelectedLgCode(newLgCode);
-    setSelectedMdCode(""); // 중분류 초기화
-    setSelectedSmCode(""); // 소분류 초기화
-    setError(null);
+    const v = e.target.value;
+    setSelectedLgCode(v);
+    setSelectedMdCode("");
+    setSelectedSmCode("");
   };
 
-  // 중분류 변경 핸들러
+  // 소분류 옵션 계산
   const handleMdChange = (e) => {
-    const newMdCode = e.target.value;
-    setSelectedMdCode(newMdCode);
-    setSelectedSmCode(""); // 소분류 초기화
-    setError(null);
+    const v = e.target.value;
+    setSelectedMdCode(v);
+    setSelectedSmCode("");
   };
+  const handleSmChange = (e) => setSelectedSmCode(e.target.value);
 
-  // 소분류 변경 핸들러
-  const handleSmChange = (e) => {
-    const newSmCode = e.target.value;
-    setSelectedSmCode(newSmCode);
-    setError(null);
-  };
+  /** 여러 장 업로드 */
+  const onPickImage = (e) =>
+    handleFiles(Array.from(e.target.files || []).slice(0, 20)); // 과도 업로드 방지
 
-  const handleFile = async (file) => {
-    if (!file) return;
+  const handleFiles = async (files) => {
+    if (!files.length) return;
 
-    const localUrl = URL.createObjectURL(file);
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(localUrl);
+    // 로컬 프리뷰 먼저 삽입
+    const localItems = files.map((file) => ({
+      id: crypto.randomUUID(),
+      preview: URL.createObjectURL(file),
+      url: null,
+      file,
+    }));
+    setImages((prev) => [...prev, ...localItems]);
 
     try {
       setUploading(true);
-      const res = await s3Service.uploadImage(file);
-      const uploadedUrl = res?.imageUrl || res?.url;
-      if (!uploadedUrl) {
-        throw new Error("업로드 응답에 imageUrl/url이 없습니다.");
+      // 순차 업로드(안전)
+      for (const item of localItems) {
+        const res = await s3Service.uploadImage(item.file);
+        const uploadedUrl = res?.imageUrl || res?.url;
+        if (!uploadedUrl) throw new Error("업로드 응답에 imageUrl/url 없음");
+
+        setImages((prev) =>
+          prev.map((p) =>
+            p.id === item.id ? { ...p, url: uploadedUrl, file: undefined } : p
+          )
+        );
       }
-      setForm((s) => ({ ...s, imageUrl: uploadedUrl }));
     } catch (err) {
       console.error(err);
       setError(
         err?.response?.data?.message || err.message || "이미지 업로드 실패"
       );
-      URL.revokeObjectURL(localUrl);
-      setImagePreview("");
+      // 실패한 항목 제거 및 blob 정리
+      setImages((prev) => {
+        localItems.forEach((li) => {
+          if (li.preview?.startsWith("blob:")) URL.revokeObjectURL(li.preview);
+        });
+        return prev.filter((p) => !localItems.some((li) => li.id === p.id));
+      });
     } finally {
       setUploading(false);
     }
   };
 
-  const onPickImage = (e) => handleFile(e.target.files?.[0]);
+  /** 대표/삭제/드래그 */
+  const makeCover = (idx) =>
+    setImages((prev) => {
+      const arr = [...prev];
+      const [x] = arr.splice(idx, 1);
+      arr.unshift(x);
+      return arr;
+    });
 
+  const removeImage = (idx) =>
+    setImages((prev) => {
+      const arr = [...prev];
+      const [x] = arr.splice(idx, 1);
+      if (x?.preview?.startsWith("blob:")) URL.revokeObjectURL(x.preview);
+      return arr;
+    });
+
+  const onDragStart = (idx) => () => (dragIndexRef.current = idx);
+  const onDragOver = (e) => e.preventDefault();
+  const onDrop = (idx) => (e) => {
+    e.preventDefault();
+    const from = dragIndexRef.current;
+    if (from == null || from === idx) return;
+    setImages((prev) => {
+      const arr = [...prev];
+      const [moved] = arr.splice(from, 1);
+      arr.splice(idx, 0, moved);
+      return arr;
+    });
+    dragIndexRef.current = null;
+  };
+
+  /** 정리(cleanup) */
+  useEffect(() => {
+    return () => {
+      images.forEach((img) => {
+        if (img.preview?.startsWith("blob:")) URL.revokeObjectURL(img.preview);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 폼 리셋 */
   const resetForm = () => {
     setForm({
       title: "",
       price: "",
       finalCategoryCode: DEFAULT_LARGE_CODE,
-      imageUrl: "",
+
       content: "",
     });
     setSelectedLgCode(DEFAULT_LARGE_CODE);
     setSelectedMdCode("");
     setSelectedSmCode("");
     setHashtagsInput("");
-    if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview("");
+    images.forEach((img) => {
+      if (img.preview?.startsWith("blob:")) URL.revokeObjectURL(img.preview);
+    });
+    setImages([]);
     setError(null);
   };
 
+  /** 취소 */
   const handleCancel = () => {
     const hasChanges =
-      form.title || form.price || form.content || hashtagsInput || imagePreview;
-
+      form.title ||
+      form.price ||
+      form.content ||
+      hashtagsInput ||
+      images.length;
     if (hasChanges) {
       const ok = window.confirm("작성 중인 내용이 있습니다. 취소할까요?");
       if (!ok) return;
@@ -291,6 +405,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
     else navigate(isEdit ? `/products/${postId}` : "/");
   };
 
+  /** 제출 */
   const onSubmit = async (e) => {
     e.preventDefault();
 
@@ -298,21 +413,28 @@ const ProductCreate = ({ onCreated, goBack }) => {
       setError("카테고리를 선택해주세요.");
       return;
     }
+    if (uploading) {
+      setError("이미지 업로드가 끝날 때까지 잠시만 기다려 주세요.");
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
 
     try {
+      const imageUrls = images.map((i) => i.url).filter(Boolean);
       const payload = {
         title: form.title?.trim(),
         content: form.content?.trim(),
         price: form.price === "" ? null : Number(form.price),
-        categoryCode: form.finalCategoryCode,
-        imageUrl: form.imageUrl || undefined,
+        categoryCode: Number(form.finalCategoryCode), // 숫자 변환
+        imageUrl: imageUrls[0] || undefined, // 대표
+        imageUrls, // 전체(백엔드에서 저장)
         hashtags: parseHashtags(hashtagsInput),
       };
+
       if (isEdit) {
-        const updated = await postService.updatePost(postId, payload);
+        await postService.updatePost(postId, payload);
         resetForm();
         navigate(`/products/${postId}`);
       } else {
@@ -322,27 +444,18 @@ const ProductCreate = ({ onCreated, goBack }) => {
         navigate(`/products/${data.id}`);
       }
     } catch (err) {
+      console.error(err);
       setError(err?.response?.data?.message || err.message || "등록 실패");
     } finally {
       setSubmitting(false);
     }
   };
 
-  const onDelete = async () => {
-    if (!isEdit) return;
-    if (!window.confirm("정말 삭제할까요?")) return;
-    try {
-      await postService.deletePost(postId);
-      navigate("/products");
-    } catch (e) {
-      console.error(e);
-      alert("삭제 실패");
-    }
-  };
-
+  /** ========== UI ========== */
   return (
     <MainLayout>
       <Header />
+
       <div className="w-[960px] mx-auto p-6 font-presentation">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-semibold">
@@ -360,75 +473,79 @@ const ProductCreate = ({ onCreated, goBack }) => {
         </div>
 
         <form onSubmit={onSubmit} className="space-y-8">
+          {/* ========== 이미지 영역 ========== */}
           <section>
             <label className="block text-sm font-medium mb-2">상품이미지</label>
 
-            {!imagePreview ? (
-              <label
-                className="group relative w-full min-h-[260px] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition cursor-pointer"
-                title="이미지를 클릭해서 선택"
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={onPickImage}
-                />
-                <div className="flex items-center gap-2 text-sm">
-                  <FiImage className="text-xl opacity-80" />
-                  <span className="font-medium">이미지 등록</span>
-                </div>
-                {uploading && (
-                  <span className="text-xs mt-2">업로드 중...</span>
-                )}
-              </label>
-            ) : (
-              <div className="relative group rounded-xl border overflow-hidden bg-gray-50">
-                <div className="w-full h-[520px] flex items-center justify-center">
-                  <img
-                    src={imagePreview}
-                    alt="preview"
-                    className="w-full h-full object-contain"
-                    onError={(e) => {
-                      e.currentTarget.src = "";
-                    }}
-                  />
-                </div>
+            {/* 업로드 드롭존 */}
+            <label
+              className="group relative w-full min-h-[160px] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition cursor-pointer"
+              title="이미지를 클릭해서 선택"
+            >
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={onPickImage}
+              />
+              <div className="flex items-center gap-2 text-sm">
+                <FiImage className="text-xl opacity-80" />
+                <span className="font-medium">이미지 등록</span>
+                {uploading && <span className="text-xs">· 업로드 중...</span>}
+              </div>
+            </label>
 
-                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/0 via-black/0 to-black/10 opacity-0 group-hover:opacity-100 transition" />
-                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
-                  <label className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-sm shadow-sm hover:bg-white cursor-pointer">
-                    <FiEdit2 />
-                    <span className="hidden sm:inline">
-                      {uploading ? "업로드 중..." : "이미지 변경"}
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={onPickImage}
-                      disabled={uploading}
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (imagePreview) URL.revokeObjectURL(imagePreview);
-                      setImagePreview("");
-                      setForm((s) => ({ ...s, imageUrl: "" }));
-                    }}
-                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-sm shadow-sm hover:bg-white"
-                    disabled={uploading}
+            {/* 썸네일 그리드 */}
+            {images.length > 0 && (
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {images.map((img, idx) => (
+                  <div
+                    key={img.id}
+                    className="group relative border rounded-lg overflow-hidden bg-gray-50 cursor-grab active:cursor-grabbing"
+                    draggable
+                    onDragStart={onDragStart(idx)}
+                    onDragOver={onDragOver}
+                    onDrop={onDrop(idx)}
+                    title="드래그해서 순서 변경"
                   >
-                    <FiTrash2 />
-                    <span className="hidden sm:inline">삭제</span>
-                  </button>
-                </div>
+                    {/* 대표 배지: 첫 번째만 항상 표시 (검정 라벨 스타일) */}
+                    {idx === 0 && (
+                      <span className="absolute left-2 top-2 z-10 inline-flex items-center px-2 py-1 rounded-md text-[11px] font-semibold bg-black/70 text-white shadow-sm">
+                        대표이미지
+                      </span>
+                    )}
+
+                    {/* X 삭제 버튼: 호버 시 표시 */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation(); // 드래그/다른 이벤트와 충돌 방지
+                        removeImage(idx);
+                      }}
+                      className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 hover:bg-black text-white rounded-full w-6 h-6 flex items-center justify-center shadow-sm"
+                      aria-label="이미지 삭제"
+                      title="삭제"
+                      draggable={false}
+                    >
+                      <FiX size={14} />
+                    </button>
+
+                    <img
+                      src={img.preview || img.url}
+                      alt={`image-${idx}`}
+                      className="w-full h-40 object-cover select-none pointer-events-none"
+                      onError={(e) =>
+                        (e.currentTarget.style.visibility = "hidden")
+                      }
+                    />
+                  </div>
+                ))}
               </div>
             )}
           </section>
 
+          {/* ========== 카테고리 3단계 ========== */}
           <section>
             <label
               htmlFor="category-select"
@@ -438,7 +555,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
             </label>
             {/* 3단계 계층형 드롭다운 */}
             <div className="flex flex-col sm:flex-row gap-3">
-              {/* 1. 대분류 선택 */}
+              {/* 대분류 */}
               <div className="relative flex-1">
                 <select
                   name="largeCategory"
@@ -469,7 +586,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
                 </svg>
               </div>
 
-              {/* 2. 중분류 선택 */}
+              {/* 중분류 */}
               <div className="relative flex-1">
                 <select
                   name="mediumCategory"
@@ -509,7 +626,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
                 </svg>
               </div>
 
-              {/* 3. 소분류 선택 */}
+              {/* 소분류 */}
               <div className="relative flex-1">
                 <select
                   name="smallCategory"
@@ -551,6 +668,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
             </div>
           </section>
 
+          {/* ========== 나머지 폼 ========== */}
           <section>
             <label className="block text-sm font-medium mb-2">상품명</label>
             <div className="relative">
@@ -644,6 +762,7 @@ const ProductCreate = ({ onCreated, goBack }) => {
           {error && <p className="text-sm text-red-600">{error}</p>}
         </form>
       </div>
+
       <Footer />
     </MainLayout>
   );
