@@ -647,7 +647,7 @@ export default function UserProduct() {
               <h3 className="text-base font-semibold mb-3">사용자 정보</h3>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-full overflow-hidden">
+                  <div className="w-14 h-14 rounded-full ">
                     <Avatar user={post?.user} size="small" />
                   </div>
                   <div className="leading-tight">
