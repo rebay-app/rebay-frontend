@@ -9,6 +9,9 @@ import Header from "../layout/Header";
 import Footer from "../layout/Footer";
 import api from "../../services/api";
 
+import aiService from "../../services/ai";
+import { FiCpu } from "react-icons/fi"; // 아이콘 (없으면 react-icons 설치 필요, 아니면 텍스트로 대체)
+
 /** ========== 카테고리 계층 ========== */
 const CATEGORY_HIERARCHY = {
   200: {
@@ -108,6 +111,11 @@ const ProductCreate = ({ onCreated, goBack }) => {
   const [submitting, setSubmitting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
+
+  const [imagePreview, setImagePreview] = useState("");
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [fileForAi, setFileForAi] = useState(null); // 분석할 원본 파일 저장
 
   const titleCount = useMemo(() => form.title.length, [form.title]);
 
@@ -212,6 +220,11 @@ const ProductCreate = ({ onCreated, goBack }) => {
       url: null,
     }));
 
+    setFileForAi(file); // [추가] AI 분석을 위해 원본 파일 저장
+
+    const localUrl = URL.createObjectURL(file);
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview(localUrl);
     setImages((prev) => [...prev, ...localItems]);
 
     try {
@@ -275,6 +288,85 @@ const ProductCreate = ({ onCreated, goBack }) => {
     });
 
     dragIndexRef.current = null;
+  };
+
+  // AI 분석 핸들러
+  const handleAiAnalysis = async () => {
+    if (!fileForAi) {
+      alert("먼저 상품 이미지를 등록해주세요.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "AI가 이미지를 분석하여 제목, 내용, 카테고리를 자동으로 작성합니다.\n기존 내용은 덮어씌워집니다. 진행하시겠습니까?"
+    );
+    if (!confirmed) return;
+
+    setIsAnalyzing(true);
+    try {
+      const data = await aiService.analyzeImage(fileForAi);
+
+      // 텍스트 데이터 적용
+      setForm((prev) => ({
+        ...prev,
+        title: data.title || prev.title,
+        content: data.content || prev.content,
+        finalCategoryCode: data.categoryCode || prev.finalCategoryCode,
+      }));
+
+      // 카테고리 드롭다운 자동 선택 로직
+      if (data.categoryCode) {
+        const targetCode = String(data.categoryCode);
+        let foundLg = "",
+          foundMd = "",
+          foundSm = "";
+
+        // 계층 구조 탐색 (대분류 -> 중분류 -> 소분류)
+        // CATEGORY_HIERARCHY는 컴포넌트 외부에 정의되어 있으므로 바로 접근 가능
+        outerLoop: for (const [lgKey, lgVal] of Object.entries(
+          CATEGORY_HIERARCHY
+        )) {
+          // 대분류 자체가 타겟인 경우
+          if (lgKey === targetCode) {
+            foundLg = lgKey;
+            break;
+          }
+
+          const mdChildren = lgVal.children || {};
+          for (const [mdKey, mdVal] of Object.entries(mdChildren)) {
+            // 중분류가 타겟인 경우
+            if (mdKey === targetCode) {
+              foundLg = lgKey;
+              foundMd = mdKey;
+              break outerLoop;
+            }
+
+            const smChildren = mdVal.children || {};
+            for (const [smKey, _] of Object.entries(smChildren)) {
+              // 소분류가 타겟인 경우
+              if (smKey === targetCode) {
+                foundLg = lgKey;
+                foundMd = mdKey;
+                foundSm = smKey;
+                break outerLoop;
+              }
+            }
+          }
+        }
+
+        // 찾은 값으로 상태 업데이트 (UI 반영)
+        if (foundLg) setSelectedLgCode(foundLg);
+        if (foundMd) setSelectedMdCode(foundMd); // 없으면 "" (초기화)
+        if (foundSm) setSelectedSmCode(foundSm);
+      }
+
+      alert("AI 분석이 완료되었습니다!");
+    } catch (err) {
+      console.error(err);
+      alert("AI 분석에 실패했습니다.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   /** ───────────────────────────────
@@ -357,6 +449,86 @@ const ProductCreate = ({ onCreated, goBack }) => {
           <section>
             <label className="block text-sm font-medium mb-2">상품이미지</label>
 
+            {/* [추가] AI 버튼 */}
+            {imagePreview && (
+              <button
+                type="button"
+                onClick={handleAiAnalysis}
+                disabled={isAnalyzing}
+                className={`
+                     flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-sm
+                     ${
+                       isAnalyzing
+                         ? "bg-gray-400 cursor-wait"
+                         : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:shadow-md hover:-translate-y-0.5"
+                     }
+                   `}
+              >
+                <FiCpu
+                  size={14}
+                  className={isAnalyzing ? "animate-spin" : ""}
+                />
+                {isAnalyzing ? "AI 분석 중..." : "✨ AI 자동 채우기"}
+              </button>
+            )}
+
+            {!imagePreview ? (
+              <label
+                className="group relative w-full min-h-[260px] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition cursor-pointer"
+                title="이미지를 클릭해서 선택"
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={onPickImage}
+                />
+                <div className="flex items-center gap-2 text-sm">
+                  <FiImage className="text-xl opacity-80" />
+                  <span className="font-medium">이미지 등록</span>
+                </div>
+                {uploading && (
+                  <span className="text-xs mt-2">업로드 중...</span>
+                )}
+              </label>
+            ) : (
+              <div className="relative group rounded-xl border overflow-hidden bg-gray-50">
+                <div className="w-full h-[520px] flex items-center justify-center">
+                  <img
+                    src={imagePreview}
+                    alt="preview"
+                    className="w-full h-full object-contain"
+                    onError={(e) => {
+                      e.currentTarget.src = "";
+                    }}
+                  />
+                </div>
+
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/0 via-black/0 to-black/10 opacity-0 group-hover:opacity-100 transition" />
+                <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition">
+                  <label className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-sm shadow-sm hover:bg-white cursor-pointer">
+                    <FiEdit2 />
+                    <span className="hidden sm:inline">
+                      {uploading ? "업로드 중..." : "이미지 변경"}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={onPickImage}
+                      disabled={uploading}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (imagePreview) URL.revokeObjectURL(imagePreview);
+                      setImagePreview("");
+                      setForm((s) => ({ ...s, imageUrl: "" }));
+                    }}
+                    className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 backdrop-blur px-3 py-1.5 text-sm shadow-sm hover:bg-white"
+                    disabled={uploading}
             <label className="group relative w-full min-h-[260px] rounded-xl border-2 border-dashed border-gray-300 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 transition cursor-pointer">
               <input
                 type="file"
