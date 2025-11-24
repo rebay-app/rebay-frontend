@@ -21,6 +21,7 @@ const ChatRoom = ({ roomId }) => {
   const scrollRef = useRef(null);
   const [warning, setWarning] = useState(false); // 계좌번호 입력 시 경고
   const [checking, setChecking] = useState(false); // AI로 입력 검사
+  const [isTyping, setIsTyping] = useState(false);
 
   useEffect(() => {
     if (roomId) enterRoom(roomId);
@@ -37,6 +38,7 @@ const ChatRoom = ({ roomId }) => {
     debounce(async (value) => {
       if (!value.trim()) {
         setWarning(false);
+        setChecking(false);
         return;
       }
 
@@ -51,6 +53,7 @@ const ChatRoom = ({ roomId }) => {
         console.error("AI 검사 오류: ", e);
       } finally {
         setChecking(false);
+        setIsTyping(false);
       }
     }, 300),
     []
@@ -59,6 +62,9 @@ const ChatRoom = ({ roomId }) => {
   const handleInputChange = (e) => {
     const value = e.target.value;
     setInput(value);
+    setIsTyping(true);
+    setWarning(false);
+    setChecking(false);
     checkAccount(value);
   };
 
@@ -74,6 +80,8 @@ const ChatRoom = ({ roomId }) => {
     navigate(-1);
     console.log("뒤로가기");
   };
+
+  const canSend = input.trim().length > 0 && !warning && !checking && !isTyping;
 
   return (
     <div className="font-presentation flex flex-col h-full max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden">
@@ -216,12 +224,13 @@ const ChatRoom = ({ roomId }) => {
 
           <button
             type="submit"
-            disabled={!input.trim() || warning || checking}
-            className={`relative p-3 sm:p-3.5 rounded-2xl transition-all duration-300 shadow-lg flex items-center justify-center overflow-hidden group ${
-              input.trim() && !warning && !checking
-                ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-purple-600 hover:shadow-xl hover:scale-105 active:scale-95"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
+            disabled={!canSend}
+            className={`relative p-3 sm:p-3.5 rounded-2xl transition-all duration-300 shadow-lg flex items-center justify-center overflow-hidden group 
+              ${
+                canSend
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-sky-600 hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              }`}
           >
             {input.trim() && !warning && !checking && (
               <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 transform -translate-x-full group-hover:translate-x-full transition-transform duration-700"></div>
